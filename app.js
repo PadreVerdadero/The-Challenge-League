@@ -40,7 +40,7 @@ function renderRoster() {
   roster.innerHTML = '<h2>Roster</h2>';
 
   Object.entries(players).forEach(([id, p]) => {
-    if (id === championId) return; // Skip champion
+    if (id === championId) return;
 
     const btn = document.createElement('button');
     btn.textContent = `${p.name} (${p.points || 0})`;
