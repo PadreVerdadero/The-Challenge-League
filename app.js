@@ -50,10 +50,6 @@ function renderRoster() {
     };
     roster.appendChild(btn);
   });
-
-  // Highlight champion in roster (if shown elsewhere)
-  const champBtn = document.querySelector(`button[data-id="${championId}"]`);
-  if (champBtn) champBtn.classList.add('champion-button');
 }
 
 // 🏁 Render Match History
