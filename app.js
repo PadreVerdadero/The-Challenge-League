@@ -36,24 +36,21 @@ function renderChampion() {
 function renderRoster() {
   const roster = document.getElementById('roster');
   roster.innerHTML = '<h2>Roster</h2>';
+
   Object.entries(players).forEach(([id, p]) => {
+    if (id === championId) return; // Skip champion
+
     const btn = document.createElement('button');
-    btn.textContent = `${id === championId ? '👑 ' : ''}${p.name} (${p.points || 0})`;
-
-    // Add gold border if this player is the champion
-    if (id === championId) {
-      btn.classList.add('champion-button');
-    }
-
+    btn.textContent = `${p.name} (${p.points || 0})`;
     btn.onclick = () => {
       const confirmSet = confirm(`Make ${p.name} the new Champion?`);
       if (confirmSet) {
         championRef.set(id);
       }
     };
-
     roster.appendChild(btn);
   });
+}
 
   const challengerSelect = document.getElementById('challenger-select');
   challengerSelect.innerHTML = Object.entries(players)
