@@ -61,21 +61,30 @@ function renderRoster() {
     .join('');
 }
 
-// ⚔️ Render Challenge Queue
-function renderQueue() {
-  const queue = document.getElementById('challenge-queue');
-  queue.innerHTML = '<h2>Challenge Queue</h2>';
-  challenges
-    .filter(c => c.status === 'pending')
-    .forEach(c => {
-      const li = document.createElement('div');
-      li.textContent = `${players[c.challengerId].name} vs ${players[c.targetId].name}`;
-      const btn = document.createElement('button');
-      btn.textContent = 'Resolve';
-      btn.onclick = () => resolvePrompt(c);
-      li.appendChild(btn);
-      queue.appendChild(li);
-    });
+function renderMatchHistory() {
+  const history = document.getElementById('match-history');
+  history.innerHTML = '<h2>Match History</h2>';
+
+  const resolved = challenges
+    .filter(c => c.status === 'resolved')
+    .sort((a, b) => b.timestamp - a.timestamp); // newest first
+
+  if (resolved.length === 0) {
+    history.innerHTML += '<p>No matches yet.</p>';
+    return;
+  }
+
+  resolved.forEach(c => {
+    const winnerId = c.result === 'challenger' ? c.challengerId : c.targetId;
+    const loserId = winnerId === c.challengerId ? c.targetId : c.challengerId;
+    const winner = players[winnerId]?.name || 'Unknown';
+    const loser = players[loserId]?.name || 'Unknown';
+    const time = new Date(c.timestamp).toLocaleString();
+
+    const entry = document.createElement('div');
+    entry.textContent = `🏁 ${winner} defeated ${loser} on ${time}`;
+    history.appendChild(entry);
+  });
 }
 
 // 📝 Submit Challenge
@@ -142,7 +151,7 @@ championRef.on('value', snap => {
 
 challengesRef.on('value', snap => {
   challenges = snap.val() ? Object.values(snap.val()) : [];
-  renderQueue();
+  ueue();
 });
 
 document.getElementById('add-player-button').addEventListener('click', () => {
