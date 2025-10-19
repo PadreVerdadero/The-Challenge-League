@@ -1,8 +1,4 @@
-// Import Firebase modules
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { getDatabase, ref, onValue, set, get, child, update, push, runTransaction } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
-
-// Your Firebase config (from your project)
+// Initialize Firebase using the compat SDK
 const firebaseConfig = {
   apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
   authDomain: "the-challenge-league.firebaseapp.com",
@@ -14,14 +10,13 @@ const firebaseConfig = {
   measurementId: "G-LNQ8DS3R2E"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
 // Firebase references
-const playersRef = ref(db, 'players');
-const championRef = ref(db, 'championId');
-const challengesRef = ref(db, 'challenges');
+const playersRef = db.ref('players');
+const championRef = db.ref('championId');
+const challengesRef = db.ref('challenges');
 
 // Global cache
 let players = {};
@@ -78,7 +73,7 @@ document.getElementById('submit-challenge').addEventListener('click', () => {
   const targetEntry = Object.entries(players).find(([id, p]) => p.name === targetName);
   if (!targetEntry) return alert("Player not found.");
   const [targetId] = targetEntry;
-  const id = push(challengesRef).key;
+  const id = challengesRef.push().key;
   const challenge = {
     id,
     challengerId,
@@ -86,7 +81,7 @@ document.getElementById('submit-challenge').addEventListener('click', () => {
     timestamp: Date.now(),
     status: 'pending'
   };
-  set(ref(db, `challenges/${id}`), challenge);
+  challengesRef.child(id).set(challenge);
 });
 
 // 🏁 Resolve Challenge
@@ -99,44 +94,41 @@ function resolvePrompt(challenge) {
 }
 
 async function resolveChallenge(challengeId, winnerId) {
-  const challengeSnap = await get(child(ref(db), `challenges/${challengeId}`));
-  if (!challengeSnap.exists()) return;
-  const c = challengeSnap.val();
+  const snap = await challengesRef.child(challengeId).get();
+  if (!snap.exists()) return;
+  const c = snap.val();
   const loserId = winnerId === c.challengerId ? c.targetId : c.challengerId;
 
   // Update challenge
-  await update(ref(db, `challenges/${challengeId}`), {
+  challengesRef.child(challengeId).update({
     status: 'resolved',
     result: winnerId === c.challengerId ? 'challenger' : 'target'
   });
 
   // Update points
-  const winnerPointsRef = ref(db, `players/${winnerId}/points`);
-  const loserPointsRef = ref(db, `players/${loserId}/points`);
-
-  runTransaction(winnerPointsRef, (points) => (points || 0) + 15);
-  runTransaction(loserPointsRef, (points) => Math.max(0, (points || 0) - 3));
+  playersRef.child(winnerId).child('points').transaction(p => (p || 0) + 15);
+  playersRef.child(loserId).child('points').transaction(p => Math.max(0, (p || 0) - 3));
 
   // Update champion if needed
-  const champSnap = await get(championRef);
+  const champSnap = await championRef.get();
   if (champSnap.exists() && c.targetId === champSnap.val() && winnerId === c.challengerId) {
-    set(championRef, winnerId);
+    championRef.set(winnerId);
   }
 }
 
 // 🔄 Firebase Listeners
-onValue(playersRef, (snap) => {
+playersRef.on('value', snap => {
   players = snap.val() || {};
   renderRoster();
   renderChampion();
 });
 
-onValue(championRef, (snap) => {
+championRef.on('value', snap => {
   championId = snap.val();
   renderChampion();
 });
 
-onValue(challengesRef, (snap) => {
+challengesRef.on('value', snap => {
   challenges = snap.val() ? Object.values(snap.val()) : [];
   renderQueue();
 });
