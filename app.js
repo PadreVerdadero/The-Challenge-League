@@ -1,4 +1,3 @@
-console.log("App.js loaded");
 // Initialize Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
@@ -23,6 +22,8 @@ const challengesRef = db.ref('challenges');
 let players = {};
 let championId = null;
 let challenges = [];
+
+console.log("App.js loaded");
 
 // 🏆 Champion
 function renderChampion() {
@@ -127,16 +128,18 @@ challengesRef.on('value', snap => {
   renderMatchHistory();
 });
 
-// ➕ Add Player
+// ➕ Add Player (name only)
 document.getElementById('add-player-button').addEventListener('click', () => {
+  console.log("Add Player button clicked");
+
   const name = document.getElementById('new-player-name').value.trim();
   if (!name) {
     alert("Please enter a player name.");
     return;
   }
 
-  // Generate ID from name (lowercase, no spaces)
   const id = name.toLowerCase().replace(/\s+/g, '');
+  console.log("Generated ID:", id);
 
   if (players[id]) {
     alert("That player already exists. Choose a different name.");
