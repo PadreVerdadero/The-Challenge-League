@@ -1,3 +1,4 @@
+console.log("App.js loaded");
 // Initialize Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
