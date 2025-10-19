@@ -46,3 +46,7 @@ input, select {
   border: 1px solid #ccc;
   border-radius: 4px;
 }
+.champion-button {
+  border: 2px solid gold;
+  box-shadow: 0 0 8px gold;
+}
