@@ -50,14 +50,13 @@ function renderRoster() {
     };
     roster.appendChild(btn);
   });
+
+  // Highlight champion in roster (if shown elsewhere)
+  const champBtn = document.querySelector(`button[data-id="${championId}"]`);
+  if (champBtn) champBtn.classList.add('champion-button');
 }
 
-  const challengerSelect = document.getElementById('challenger-select');
-  challengerSelect.innerHTML = Object.entries(players)
-    .map(([id, p]) => `<option value="${id}">${p.name}</option>`)
-    .join('');
-}
-
+// 🏁 Render Match History
 function renderMatchHistory() {
   const history = document.getElementById('match-history');
   history.innerHTML = '<h2>Match History</h2>';
@@ -83,24 +82,6 @@ function renderMatchHistory() {
     history.appendChild(entry);
   });
 }
-
-// 📝 Submit Challenge
-document.getElementById('submit-challenge').addEventListener('click', () => {
-  const challengerId = document.getElementById('challenger-select').value;
-  const targetName = document.getElementById('target-input').value.trim();
-  const targetEntry = Object.entries(players).find(([id, p]) => p.name === targetName);
-  if (!targetEntry) return alert("Player not found.");
-  const [targetId] = targetEntry;
-  const id = challengesRef.push().key;
-  const challenge = {
-    id,
-    challengerId,
-    targetId,
-    timestamp: Date.now(),
-    status: 'pending'
-  };
-  challengesRef.child(id).set(challenge);
-});
 
 // 🏁 Resolve Challenge
 function resolvePrompt(challenge) {
@@ -143,6 +124,7 @@ playersRef.on('value', snap => {
 
 championRef.on('value', snap => {
   championId = snap.val();
+  renderRoster();
   renderChampion();
 });
 
@@ -151,6 +133,7 @@ challengesRef.on('value', snap => {
   renderMatchHistory();
 });
 
+// ➕ Add Player
 document.getElementById('add-player-button').addEventListener('click', () => {
   const name = document.getElementById('new-player-name').value.trim();
   const id = document.getElementById('new-player-id').value.trim().toLowerCase();
