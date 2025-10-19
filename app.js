@@ -129,15 +129,16 @@ challengesRef.on('value', snap => {
 // ➕ Add Player
 document.getElementById('add-player-button').addEventListener('click', () => {
   const name = document.getElementById('new-player-name').value.trim();
-  const id = document.getElementById('new-player-id').value.trim().toLowerCase();
-
-  if (!name || !id) {
-    alert("Please enter both a name and a unique ID.");
+  if (!name) {
+    alert("Please enter a player name.");
     return;
   }
 
+  // Generate ID from name (lowercase, no spaces)
+  const id = name.toLowerCase().replace(/\s+/g, '');
+
   if (players[id]) {
-    alert("That ID is already taken. Choose a different one.");
+    alert("That player already exists. Choose a different name.");
     return;
   }
 
@@ -147,5 +148,4 @@ document.getElementById('add-player-button').addEventListener('click', () => {
   });
 
   document.getElementById('new-player-name').value = '';
-  document.getElementById('new-player-id').value = '';
 });
