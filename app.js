@@ -40,16 +40,45 @@ function renderRoster() {
   roster.innerHTML = '<h2>Roster</h2>';
 
   Object.entries(players).forEach(([id, p]) => {
-    if (id === championId) return;
+    if (id === championId) return; // Skip champion
 
     const btn = document.createElement('button');
     btn.textContent = `${p.name} (${p.points || 0})`;
-    btn.onclick = () => {
-      const confirmSet = confirm(`Make ${p.name} the new Champion?`);
-      if (confirmSet) {
-        championRef.set(id);
+    btn.onclick = async () => {
+      const challengerId = id;
+      const champion = players[championId];
+      if (!champion) return alert("No champion is currently set.");
+
+      const description = prompt(`Describe the challenge between ${p.name} and ${champion.name}:`);
+      if (!description) return;
+
+      const winnerName = prompt(`Who won?\nType "${p.name}" or "${champion.name}"`);
+      const winnerEntry = Object.entries(players).find(([pid, player]) => player.name === winnerName);
+      if (!winnerEntry) return alert("Invalid winner name.");
+      const [winnerId] = winnerEntry;
+
+      const challengeId = firebase.database().ref('challenges').push().key;
+      const challenge = {
+        id: challengeId,
+        challengerId,
+        targetId: championId,
+        description,
+        winnerId,
+        timestamp: Date.now(),
+        status: "resolved"
+      };
+
+      await firebase.database().ref('challenges/' + challengeId).set(challenge);
+
+      const loserId = winnerId === challengerId ? championId : challengerId;
+      firebase.database().ref('players/' + winnerId + '/points').transaction(p => (p || 0) + 15);
+      firebase.database().ref('players/' + loserId + '/points').transaction(p => Math.max(0, (p || 0) - 3));
+
+      if (winnerId === challengerId) {
+        championRef.set(challengerId);
       }
     };
+
     roster.appendChild(btn);
   });
 }
@@ -69,18 +98,17 @@ function renderMatchHistory() {
   }
 
   resolved.forEach(c => {
-    const winnerId = c.result === 'challenger' ? c.challengerId : c.targetId;
-    const loserId = winnerId === c.challengerId ? c.targetId : c.challengerId;
-    const winner = players[winnerId]?.name || 'Unknown';
-    const loser = players[loserId]?.name || 'Unknown';
+    const challenger = players[c.challengerId]?.name || 'Unknown';
+    const champion = players[c.targetId]?.name || 'Unknown';
+    const winner = players[c.winnerId]?.name || 'Unknown';
     const time = new Date(c.timestamp).toLocaleString();
+    const description = c.description || 'No description';
 
     const entry = document.createElement('div');
-    entry.textContent = `🏁 ${winner} defeated ${loser} on ${time}`;
+    entry.textContent = `🏁 ${challenger} challenged ${champion} — ${description}. Winner: ${winner} (${time})`;
     history.appendChild(entry);
   });
 }
-
 // 🏁 Resolve Challenge
 function resolvePrompt(challenge) {
   const winnerName = prompt(`Who won?\n${players[challenge.challengerId].name} or ${players[challenge.targetId].name}`);
