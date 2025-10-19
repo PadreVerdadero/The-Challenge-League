@@ -39,7 +39,12 @@ function renderRoster() {
   Object.entries(players).forEach(([id, p]) => {
     const btn = document.createElement('button');
     btn.textContent = `${p.name} (${p.points || 0})`;
-    btn.onclick = () => openChallengeForm(id);
+    btn.onclick = () => {
+      const confirmSet = confirm(`Make ${p.name} the new Champion?`);
+      if (confirmSet) {
+        championRef.set(id);
+      }
+    };
     roster.appendChild(btn);
   });
 
