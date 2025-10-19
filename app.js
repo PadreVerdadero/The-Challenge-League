@@ -28,7 +28,7 @@ function renderChampion() {
   const el = document.getElementById('champion-card');
   const champ = players[championId];
   el.innerHTML = champ
-    ? `<h2>Champion</h2><div><strong>${champ.name}</strong><br>Points: ${champ.points || 0}</div>`
+    ? `<h2>Champion</h2><div><strong>👑 ${champ.name}</strong><br>Points: ${champ.points || 0}</div>`
     : `<h2>Champion</h2><div>No champion yet</div>`;
 }
 
@@ -38,7 +38,7 @@ function renderRoster() {
   roster.innerHTML = '<h2>Roster</h2>';
   Object.entries(players).forEach(([id, p]) => {
     const btn = document.createElement('button');
-    btn.textContent = `${p.name} (${p.points || 0})`;
+    btn.textContent = `${id === championId ? '👑 ' : ''}${p.name} (${p.points || 0})`;
 
     // Add gold border if this player is the champion
     if (id === championId) {
