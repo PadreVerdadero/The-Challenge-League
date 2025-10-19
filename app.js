@@ -82,7 +82,6 @@ function renderRoster() {
     roster.appendChild(btn);
   });
 }
-
 // 🕹️ Match History
 function renderMatchHistory() {
   const history = document.getElementById('match-history');
