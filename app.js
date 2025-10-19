@@ -1,4 +1,4 @@
-// Initialize Firebase using the compat SDK
+// Initialize Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
   authDomain: "the-challenge-league.firebaseapp.com",
@@ -13,17 +13,17 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// Firebase references
+// References
 const playersRef = db.ref('players');
 const championRef = db.ref('championId');
 const challengesRef = db.ref('challenges');
 
-// Global cache
+// Global state
 let players = {};
 let championId = null;
 let challenges = [];
 
-// 🏆 Render Champion
+// 🏆 Champion
 function renderChampion() {
   const el = document.getElementById('champion-card');
   const champ = players[championId];
@@ -32,13 +32,13 @@ function renderChampion() {
     : `<h2>Champion</h2><div>No champion yet</div>`;
 }
 
-// 👥 Render Roster
+// 👥 Roster
 function renderRoster() {
   const roster = document.getElementById('roster');
   roster.innerHTML = '<h2>Roster</h2>';
 
   Object.entries(players).forEach(([id, p]) => {
-    if (id === championId) return; // Skip champion
+    if (id === championId) return;
 
     const btn = document.createElement('button');
     btn.textContent = `${p.name} (${p.points || 0})`;
@@ -52,14 +52,14 @@ function renderRoster() {
   });
 }
 
-// 🏁 Render Match History
+// 🕹️ Match History
 function renderMatchHistory() {
   const history = document.getElementById('match-history');
   history.innerHTML = '<h2>Match History</h2>';
 
   const resolved = challenges
     .filter(c => c.status === 'resolved')
-    .sort((a, b) => b.timestamp - a.timestamp); // newest first
+    .sort((a, b) => b.timestamp - a.timestamp);
 
   if (resolved.length === 0) {
     history.innerHTML += '<p>No matches yet.</p>';
@@ -94,24 +94,21 @@ async function resolveChallenge(challengeId, winnerId) {
   const c = snap.val();
   const loserId = winnerId === c.challengerId ? c.targetId : c.challengerId;
 
-  // Update challenge
   challengesRef.child(challengeId).update({
     status: 'resolved',
     result: winnerId === c.challengerId ? 'challenger' : 'target'
   });
 
-  // Update points
   playersRef.child(winnerId).child('points').transaction(p => (p || 0) + 15);
   playersRef.child(loserId).child('points').transaction(p => Math.max(0, (p || 0) - 3));
 
-  // Update champion if needed
   const champSnap = await championRef.get();
   if (champSnap.exists() && c.targetId === champSnap.val() && winnerId === c.challengerId) {
     championRef.set(winnerId);
   }
 }
 
-// 🔄 Firebase Listeners
+// 🔄 Listeners
 playersRef.on('value', snap => {
   players = snap.val() || {};
   renderRoster();
