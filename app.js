@@ -132,3 +132,26 @@ challengesRef.on('value', snap => {
   challenges = snap.val() ? Object.values(snap.val()) : [];
   renderQueue();
 });
+
+document.getElementById('add-player-button').addEventListener('click', () => {
+  const name = document.getElementById('new-player-name').value.trim();
+  const id = document.getElementById('new-player-id').value.trim().toLowerCase();
+
+  if (!name || !id) {
+    alert("Please enter both a name and a unique ID.");
+    return;
+  }
+
+  if (players[id]) {
+    alert("That ID is already taken. Choose a different one.");
+    return;
+  }
+
+  firebase.database().ref('players/' + id).set({
+    name: name,
+    points: 0
+  });
+
+  document.getElementById('new-player-name').value = '';
+  document.getElementById('new-player-id').value = '';
+});
