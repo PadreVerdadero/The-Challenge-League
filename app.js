@@ -1,4 +1,4 @@
-// Initialize Firebase
+// Initialize Firebase using compat SDK
 const firebaseConfig = {
   apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
   authDomain: "the-challenge-league.firebaseapp.com",
@@ -6,8 +6,8 @@ const firebaseConfig = {
   projectId: "the-challenge-league",
   storageBucket: "the-challenge-league.firebasestorage.app",
   messagingSenderId: "193530358761",
-  appId: "1:193530358761:web:0d86448eddd2a14a973978",
-  measurementId: "G-LNQ8DS3R2E"
+  appId: "1:193530358761:web:7b782c8bdd1a8ac7973978",
+  measurementId: "G-ED0WV8KZ6F"
 };
 
 firebase.initializeApp(firebaseConfig);
