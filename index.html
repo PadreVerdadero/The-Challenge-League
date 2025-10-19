@@ -9,8 +9,28 @@
 </head>
 <body>
   <h1>🏆 Challenge League</h1>
-  <section id="champion-card"></section>
-  <section id="roster"></section>
-  <section id="challenge-queue"></section>
+
+  <section id="champion-card">
+    <!-- Champion info will appear here -->
+  </section>
+
+  <section id="roster">
+    <h2>Roster</h2>
+    <!-- Player buttons will appear here -->
+  </section>
+
+  <section id="challenge-queue">
+    <h2>Challenge Queue</h2>
+    <!-- Pending challenges will appear here -->
+  </section>
+
+  <section id="challenge-form">
+    <h2>Challenge a player</h2>
+    <label for="challenger-select">Choose your challenger:</label>
+    <select id="challenger-select"></select>
+    <label for="target-input">Challenge:</label>
+    <input type="text" id="target-input" placeholder="Enter opponent's name" />
+    <button id="submit-challenge">Submit</button>
+  </section>
 </body>
 </html>
