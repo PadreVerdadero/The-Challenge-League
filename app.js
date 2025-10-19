@@ -151,7 +151,7 @@ championRef.on('value', snap => {
 
 challengesRef.on('value', snap => {
   challenges = snap.val() ? Object.values(snap.val()) : [];
-  ueue();
+  renderMatchHistory();
 });
 
 document.getElementById('add-player-button').addEventListener('click', () => {
