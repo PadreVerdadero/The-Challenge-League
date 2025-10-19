@@ -49,4 +49,6 @@ input, select {
 .champion-button {
   border: 2px solid gold;
   box-shadow: 0 0 8px gold;
+  font-weight: bold;
+  background-color: #fffbe6;
 }
