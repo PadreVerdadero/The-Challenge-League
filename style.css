@@ -98,3 +98,11 @@ input, select {
   color: gold;
   margin-bottom: 10px;
 }
+
+#roster button {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  padding: 16px 24px;
+  font-size: 1.4rem;
+}
