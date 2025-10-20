@@ -243,6 +243,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderRoster();
     renderMatchHistory();
   }
+  window.startNextChallengeTimer = startNextChallengeTimer;
 
   // 🔄 Listeners
   playersRef.on('value', snap => {
