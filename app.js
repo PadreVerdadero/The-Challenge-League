@@ -191,7 +191,51 @@ function maybeRender() {
     renderChampion();
   }
 }
+function startNextChallengeTimer() {
+  if (challengeQueue.length === 0) {
+    document.getElementById('next-challenger-name').textContent = 'Waiting...';
+    document.getElementById('challenge-timer').textContent = '--:--';
+    return;
+  }
 
+  currentChallengerId = challengeQueue.shift();
+  const challenger = players[currentChallengerId];
+  document.getElementById('next-challenger-name').textContent = challenger.name;
+
+  let timeLeft = 60; // seconds
+  document.getElementById('challenge-timer').textContent = `${timeLeft}s`;
+
+  currentTimer = setInterval(() => {
+    timeLeft--;
+    document.getElementById('challenge-timer').textContent = `${timeLeft}s`;
+
+    if (timeLeft <= 0) {
+      clearInterval(currentTimer);
+      handleChallengeTimeout(currentChallengerId);
+      startNextChallengeTimer(); // move to next
+    }
+  }, 1000);
+}
+
+function handleChallengeTimeout(challengerId) {
+  const challengeId = firebase.database().ref('challenges').push().key;
+  const challenge = {
+    id: challengeId,
+    challengerId,
+    targetId: championId,
+    description: 'Timed out',
+    winnerId: championId,
+    timestamp: Date.now(),
+    status: 'timeout'
+  };
+
+  firebase.database().ref('challenges/' + challengeId).set(challenge);
+  defeatedByChampion.add(challengerId);
+  renderRoster();
+}
+  function fillChallengeQueue() {
+  challengeQueue = Object.keys(players).filter(id => id !== championId);
+}
 // ➕ Add Player (name only)
 document.getElementById('add-player-button').addEventListener('click', () => {
   console.log("Add Player button clicked");
