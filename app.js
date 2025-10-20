@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
     authDomain: "the-challenge-league.firebaseapp.com",
     databaseURL: "https://the-challenge-league-default-rtdb.firebaseio.com",
     projectId: "the-challenge-league",
-    storageBucket: "the-challenge-league.firebasestorage.app",
+    storageBucket: "the-challenge-league.appspot.com",
     messagingSenderId: "193530358761",
     appId: "1:193530358761:web:7b782c8bdd1a8ac7973978",
     measurementId: "G-ED0WV8KZ6F"
@@ -236,4 +236,4 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleChallengeTimeout(challengerId) {
-    const challengeId = firebase.database
+    const challengeId = firebase.database().ref('ch
