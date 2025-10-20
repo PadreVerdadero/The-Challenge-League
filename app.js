@@ -52,10 +52,24 @@ function renderRoster() {
       const description = prompt(`Describe the challenge between ${p.name} and ${champion.name}:`);
       if (!description) return;
 
-      const winnerName = prompt(`Who won?\nType "${p.name}" or "${champion.name}"`);
-      const winnerEntry = Object.entries(players).find(([pid, player]) => player.name === winnerName);
-      if (!winnerEntry) return alert("Invalid winner name.");
-      const [winnerId] = winnerEntry;
+      // Create dropdown for winner selection
+      const winnerSelect = document.createElement('select');
+      winnerSelect.innerHTML = `
+        <option value="">Select winner</option>
+        <option value="${challengerId}">${p.name}</option>
+        <option value="${championId}">${champion.name}</option>
+      `;
+      document.body.appendChild(winnerSelect);
+      winnerSelect.focus();
+
+      // Wait for selection
+      await new Promise(resolve => {
+        winnerSelect.addEventListener('change', () => resolve());
+      });
+
+      const winnerId = winnerSelect.value;
+      document.body.removeChild(winnerSelect);
+      if (!winnerId) return alert("No winner selected.");
 
       const challengeId = firebase.database().ref('challenges').push().key;
       const challenge = {
@@ -75,6 +89,7 @@ function renderRoster() {
       firebase.database().ref('players/' + loserId + '/points').transaction(p => Math.max(0, (p || 0) - 3));
 
       if (winnerId === challengerId) {
+        animateCrownTransfer(players[championId].name, p.name);
         championRef.set(challengerId);
       }
     };
