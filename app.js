@@ -32,9 +32,9 @@ console.log("App.js loaded");
 function renderChampion() {
   const el = document.getElementById('champion-card');
   const champ = players[championId];
-  el.innerHTML = champ
-    ? `<h2>Champion</h2><div><strong>👑 ${champ.name}</strong><br>Points: ${champ.points || 0}</div>`
-    : `<h2>Champion</h2><div>No champion yet</div>`;
+el.innerHTML = champ
+  ? `<h2>Champion</h2><div><span class="champ-name">👑 ${champ.name}</span><br>Points: ${champ.points || 0}</div>`
+  : `<h2>Champion</h2><div>No champion yet</div>`;
 }
 
 // 👥 Roster
