@@ -33,7 +33,7 @@ function renderChampion() {
   const el = document.getElementById('champion-card');
   const champ = players[championId];
   el.innerHTML = champ
-    ? `<h2>Champion</h2><div><span class="champ-name">👑 ${champ.name}</span><br>Points: ${champ.points || 0}</div>`
+    ? `<h2>Champion</h2><div><span class="champ-name">👑 ${champ.name}</span></div>`
     : `<h2>Champion</h2><div>No champion yet</div>`;
 }
 
@@ -46,7 +46,7 @@ function renderRoster() {
     if (id === championId) return;
 
     const btn = document.createElement('button');
-    btn.textContent = `${p.name} (${p.points || 0})`;
+    btn.textContent = p.name;
     btn.onclick = async () => {
       const challengerId = id;
       const champion = players[championId];
@@ -72,10 +72,6 @@ function renderRoster() {
       };
 
       await firebase.database().ref('challenges/' + challengeId).set(challenge);
-
-      const loserId = winnerId === challengerId ? championId : challengerId;
-      firebase.database().ref('players/' + winnerId + '/points').transaction(p => (p || 0) + 15);
-      firebase.database().ref('players/' + loserId + '/points').transaction(p => Math.max(0, (p || 0) - 3));
 
       if (winnerId === challengerId) {
         animateCrownTransfer(players[championId]?.name || 'Unknown', p.name);
@@ -115,14 +111,20 @@ function renderMatchHistory() {
 }
 
 // 🏁 Resolve Challenge (legacy flow)
-function resolvePrompt(challenge) {
-  const winnerName = prompt(`Who won?\n${players[challenge.challengerId].name} or ${players[challenge.targetId].name}`);
-  const winnerEntry = Object.entries(players).find(([id, p]) => p.name === winnerName);
-  if (!winnerEntry) return alert("Invalid winner.");
-  const [winnerId] = winnerEntry;
-  resolveChallenge(challenge.id, winnerId);
-}
+async function resolveChallenge(challengeId, winnerId) {
+  const snap = await challengesRef.child(challengeId).get();
+  if (!snap.exists()) return;
+  const c = snap.val();
 
+  challengesRef.child(challengeId).update({
+    status: 'resolved',
+    result: winnerId === c.challengerId ? 'challenger' : 'target'
+  });
+
+  if (winnerId === c.challengerId) {
+    championRef.set(winnerId);
+  }
+}
 async function resolveChallenge(challengeId, winnerId) {
   const snap = await challengesRef.child(challengeId).get();
   if (!snap.exists()) return;
@@ -189,7 +191,6 @@ document.getElementById('add-player-button').addEventListener('click', () => {
 
   firebase.database().ref('players/' + id).set({
     name: name,
-    points: 0
   });
 
   document.getElementById('new-player-name').value = '';
