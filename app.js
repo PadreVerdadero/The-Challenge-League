@@ -89,8 +89,15 @@ function renderRoster() {
       firebase.database().ref('players/' + loserId + '/points').transaction(p => Math.max(0, (p || 0) - 3));
 
 if (winnerId === challengerId) {
-  animateCrownTransfer(players[championId].name, p.name);
+  const oldChampionName = players[championId]?.name || 'Unknown';
   await championRef.set(challengerId);
+
+  // Wait for Firebase to confirm the new champion
+  championRef.once('value', snap => {
+    const newChampionId = snap.val();
+    const newChampionName = players[newChampionId]?.name || 'Unknown';
+    animateCrownTransfer(oldChampionName, newChampionName);
+  });
 }
       }
     };
