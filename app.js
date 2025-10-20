@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // Initialize Firebase using compat SDK
+  // 🔥 Firebase Setup
   const firebaseConfig = {
     apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
     authDomain: "the-challenge-league.firebaseapp.com",
@@ -14,27 +14,19 @@ document.addEventListener("DOMContentLoaded", () => {
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
+  // 🔄 State
   let defeatedByChampion = new Set();
   let exChampionId = null;
-
   let challengeQueue = [];
   let currentTimer = null;
   let currentChallengerId = null;
-
-  const playersRef = db.ref('players');
-  const championRef = db.ref('championId');
-  const challengesRef = db.ref('challenges');
-
   let players = {};
   let championId = null;
   let challenges = [];
-
   let playersReady = false;
   let championReady = false;
 
-  console.log("App.js loaded");
-
-  // 👑 Crown Transfer Animation
+  // 👑 Animations
   function animateCrownTransfer(fromName, toName) {
     const crown = document.createElement('div');
     crown.id = 'crown-transfer';
@@ -64,47 +56,78 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 👥 Roster
   function renderRoster() {
-  const roster = document.getElementById('roster');
-  roster.innerHTML = '<h2>Roster</h2>';
+    const roster = document.getElementById('roster');
+    roster.innerHTML = '<h2>Roster</h2>';
 
-  Object.entries(players).forEach(([id, p]) => {
-    if (id === championId) return;
+    Object.entries(players).forEach(([id, p]) => {
+      if (id === championId) return;
 
-    const container = document.createElement('div');
-    container.style.display = 'flex';
-    container.style.alignItems = 'center';
-    container.style.gap = '10px';
+      const container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.alignItems = 'center';
+      container.style.gap = '10px';
 
-    const btn = document.createElement('button');
-    btn.textContent = p.name;
-    btn.style.flexGrow = '1';
+      const btn = document.createElement('button');
+      btn.textContent = p.name;
+      btn.style.flexGrow = '1';
 
-    if (defeatedByChampion.has(id) || id === exChampionId) {
-      btn.classList.add('lost-to-champion');
-    }
+      if (defeatedByChampion.has(id) || id === exChampionId) {
+        btn.classList.add('lost-to-champion');
+      }
 
-    btn.onclick = async () => {
-      // existing challenge logic...
-    };
+      btn.onclick = async () => {
+        const challengerId = id;
+        const champion = players[championId];
+        if (!champion) return alert("No champion is currently set.");
 
-    const queueBtn = document.createElement('button');
-    queueBtn.textContent = '⏫ Queue First';
-    queueBtn.style.backgroundColor = '#ffc107';
-    queueBtn.style.color = '#333';
-    queueBtn.style.fontSize = '1rem';
-    queueBtn.style.padding = '10px';
-    queueBtn.style.borderRadius = '6px';
+        const description = prompt(`Describe the challenge between ${p.name} and ${champion.name}:`);
+        if (!description) return;
 
-    queueBtn.onclick = () => {
-      challengeQueue = [id, ...challengeQueue.filter(qid => qid !== id)];
-      renderChallengeQueue();
-    };
+        const winnerName = prompt(`Who won?\nType "${p.name}" or "${champion.name}"`);
+        const winnerEntry = Object.entries(players).find(([pid, player]) => player.name === winnerName);
+        if (!winnerEntry) return alert("Invalid winner name.");
+        const [winnerId] = winnerEntry;
 
-    container.appendChild(btn);
-    container.appendChild(queueBtn);
-    roster.appendChild(container);
-  });
-}
+        const challengeId = firebase.database().ref('challenges').push().key;
+        const challenge = {
+          id: challengeId,
+          challengerId,
+          targetId: championId,
+          description,
+          winnerId,
+          timestamp: Date.now(),
+          status: "resolved"
+        };
+
+        await firebase.database().ref('challenges/' + challengeId).set(challenge);
+
+        if (winnerId === challengerId) {
+          defeatedByChampion.clear();
+          exChampionId = championId;
+          await championRef.set(challengerId);
+          animateCrownTransfer(players[championId]?.name || 'Unknown', p.name);
+        } else {
+          defeatedByChampion.add(challengerId);
+          animateFailedChallenge(p.name, champion.name);
+        }
+
+        renderRoster();
+        renderMatchHistory();
+      };
+
+      const queueBtn = document.createElement('button');
+      queueBtn.textContent = '⏫ Queue First';
+      queueBtn.classList.add('queue-first');
+      queueBtn.onclick = () => {
+        challengeQueue = [id, ...challengeQueue.filter(qid => qid !== id)];
+        renderChallengeQueue();
+      };
+
+      container.appendChild(btn);
+      container.appendChild(queueBtn);
+      roster.appendChild(container);
+    });
+  }
 
   // 🕹️ Match History
   function renderMatchHistory() {
@@ -213,24 +236,4 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleChallengeTimeout(challengerId) {
-    const challengeId = firebase.database().ref('challenges').push().key;
-    const challenge = {
-      id: challengeId,
-      challengerId,
-      targetId: championId,
-      description: 'Timed out',
-      winnerId: championId,
-      timestamp: Date.now(),
-      status: 'timeout'
-    };
-
-    firebase.database().ref('challenges/' + challengeId).set(challenge);
-    defeatedByChampion.add(challengerId);
-    renderRoster();
-    renderMatchHistory();
-  }
-  window.startNextChallengeTimer = startNextChallengeTimer;
-
-  // 🔄 Listeners
-  playersRef.on('value', snap => {
-    players = snap.val() || {};
+    const challengeId = firebase.database
