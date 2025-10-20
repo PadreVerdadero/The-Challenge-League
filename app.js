@@ -82,14 +82,15 @@ function renderRoster() {
       await firebase.database().ref('challenges/' + challengeId).set(challenge);
 
       // Update defeat tracking
-      if (winnerId === challengerId) {
-        defeatedByChampion.clear(); // reset all
-        exChampionId = championId;
-        await championRef.set(challengerId);
-      } else {
-        defeatedByChampion.add(challengerId);
-      }
-
+ if (winnerId === challengerId) {
+  defeatedByChampion.clear();
+  exChampionId = championId;
+  await championRef.set(challengerId);
+  animateCrownTransfer(players[championId]?.name || 'Unknown', p.name);
+} else {
+  defeatedByChampion.add(challengerId);
+  animateFailedChallenge(p.name, champion.name);
+}
       renderRoster(); // refresh button styles
     };
 
