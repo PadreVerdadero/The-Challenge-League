@@ -1,3 +1,5 @@
+document.addEventListener("DOMContentLoaded", () => {
+
 // Initialize Firebase using compat SDK
 const firebaseConfig = {
   apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
@@ -207,6 +209,7 @@ document.getElementById('add-player-button').addEventListener('click', () => {
   firebase.database().ref('players/' + id).set({
     name: name,
   });
+});
 
   document.getElementById('new-player-name').value = '';
 });
