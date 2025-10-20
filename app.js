@@ -4,8 +4,7 @@ import {
   ref,
   onValue,
   set,
-  push,
-  update
+  push
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
 const firebaseConfig = {
@@ -29,7 +28,6 @@ let challengeQueue = [];
 let currentTimer = null;
 let currentChallengerId = null;
 
-// 🏆 Champion
 function renderChampion() {
   const el = document.getElementById('champion-card');
   const champ = players[championId];
@@ -38,7 +36,6 @@ function renderChampion() {
     : `<h2>Champion</h2><div>No champion yet</div>`;
 }
 
-// 👥 Roster
 function renderRoster() {
   const roster = document.getElementById('roster');
   roster.innerHTML = '<h2>Roster</h2>';
@@ -71,18 +68,6 @@ function renderRoster() {
   });
 }
 
-// 🧭 Challenge Queue
-function renderChallengeQueue() {
-  const list = document.getElementById('queue-list');
-  list.innerHTML = '';
-  challengeQueue.forEach(id => {
-    const li = document.createElement('li');
-    li.textContent = players[id]?.name || 'Unknown';
-    list.appendChild(li);
-  });
-}
-
-// 🕹️ Match History
 function renderMatchHistory() {
   const history = document.getElementById('match-history');
   history.innerHTML = '<h2>Match History</h2>';
@@ -104,7 +89,16 @@ function renderMatchHistory() {
   });
 }
 
-// 🕒 Timer
+function renderChallengeQueue() {
+  const list = document.getElementById('queue-list');
+  list.innerHTML = '';
+  challengeQueue.forEach(id => {
+    const li = document.createElement('li');
+    li.textContent = players[id]?.name || 'Unknown';
+    list.appendChild(li);
+  });
+}
+
 function startNextChallengeTimer() {
   if (challengeQueue.length === 0) {
     document.getElementById('next-challenger-name').textContent = 'Waiting...';
@@ -147,20 +141,21 @@ function handleChallengeTimeout(challengerId) {
   renderMatchHistory();
 }
 
-// ➕ Add Player
-document.getElementById('add-player-button').addEventListener('click', () => {
-  const name = document.getElementById('new-player-name').value.trim();
-  if (!name) return alert("Please enter a name.");
-  const id = name.toLowerCase().replace(/\s+/g, '');
-  set(ref(db, 'players/' + id), { name });
-  document.getElementById('new-player-name').value = '';
-});
-
-// ▶️ Start Queue
-document.getElementById('start-queue-button').addEventListener('click', () => {
-  startNextChallengeTimer();
-});
+window.startNextChallengeTimer = startNextChallengeTimer;
 
 // 🔄 Firebase Listeners
-onValue(ref(db, 'players'), snap => {
-  players =
+onValue(ref(db, 'players'), snapshot => {
+  players = snapshot.val() || {};
+  renderRoster();
+  renderChallengeQueue();
+});
+
+onValue(ref(db, 'championId'), snapshot => {
+  championId = snapshot.val();
+  renderChampion();
+});
+
+onValue(ref(db, 'challenges'), snapshot => {
+  challenges = Object.values(snapshot.val() || {});
+  renderMatchHistory();
+});
