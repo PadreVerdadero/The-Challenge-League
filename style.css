@@ -54,25 +54,6 @@ input, select {
   background-color: #fffbe6;
 }
 
-#crown-transfer {
-  position: fixed;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 2rem;
-  background: gold;
-  padding: 10px 20px;
-  border-radius: 10px;
-  box-shadow: 0 0 10px gold;
-  animation: fadeOut 2s ease-in-out forwards;
-  z-index: 1000;
-}
-
-@keyframes fadeOut {
-  0% { opacity: 1; transform: translateX(-50%) scale(1); }
-  100% { opacity: 0; transform: translateX(-50%) scale(1.5); }
-}
-
 #champion-card {
   margin-bottom: 20px;
 }
@@ -104,14 +85,37 @@ input, select {
 #roster button:hover {
   background-color: #218838;
 }
+
 .lost-to-champion {
   background-color: #dc3545 !important;
   color: white;
 }
+
 #roster button.lost-to-champion {
   background-color: #dc3545 !important;
   color: white !important;
 }
+
+#roster button.lost-to-champion:hover {
+  background-color: #b02a37 !important;
+}
+
+/* Crown Transfer Animation */
+#crown-transfer {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 2rem;
+  background: gold;
+  padding: 10px 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px gold;
+  animation: fadeOut 2s ease-in-out forwards;
+  z-index: 1000;
+}
+
+/* Failed Challenge Animation */
 #challenge-fail {
   position: fixed;
   top: 20%;
@@ -126,31 +130,26 @@ input, select {
   animation: fadeOut 2s ease-in-out forwards;
   z-index: 1000;
 }
-#roster button.lost-to-champion:hover {
-  background-color: #b02a37 !important;
+
+@keyframes fadeOut {
+  0% { opacity: 1; transform: translateX(-50%) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) scale(1.5); }
 }
-#next-up {
-  background-color: #fff3cd;
-  border-left: 6px solid #ffc107;
-  padding: 10px;
-  margin-bottom: 20px;
-}
-#challenge-timer {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #dc3545;
-}
+
+/* Challenge Queue */
 #challenge-queue {
-  margin-bottom: 30px;
   background-color: #e9f7ef;
   padding: 10px;
   border-left: 6px solid #28a745;
   border-radius: 8px;
 }
+
 #queue-list {
   list-style: none;
   padding: 0;
+  margin-top: 10px;
 }
+
 #queue-list li {
   padding: 12px 20px;
   margin-bottom: 8px;
@@ -158,7 +157,34 @@ input, select {
   border: 1px solid #ccc;
   border-radius: 6px;
   cursor: grab;
+  transition: background-color 0.2s;
 }
+
+#queue-list li:hover {
+  background-color: #f1f1f1;
+}
+
 #queue-list li.dragging {
   opacity: 0.5;
+}
+
+/* Next Challenger Display */
+#next-up {
+  background-color: #fff3cd;
+  border-left: 6px solid #ffc107;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+#next-challenger-name {
+  font-size: 1.4rem;
+  font-weight: bold;
+  margin-top: 5px;
+}
+
+#challenge-timer {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #dc3545;
+  margin-top: 5px;
 }
