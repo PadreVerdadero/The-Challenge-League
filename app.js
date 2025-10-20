@@ -1,14 +1,15 @@
 document.addEventListener("DOMContentLoaded", () => {
   // 🔥 Firebase Setup
   const firebaseConfig = {
-    apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
-    authDomain: "the-challenge-league.firebaseapp.com",
-    databaseURL: "https://the-challenge-league-default-rtdb.firebaseio.com",
-    projectId: "the-challenge-league",
-    storageBucket: "the-challenge-league.appspot.com",
-    messagingSenderId: "193530358761",
-    appId: "1:193530358761:web:7b782c8bdd1a8ac7973978",
-    measurementId: "G-ED0WV8KZ6F"
+const firebaseConfig = {
+  apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
+  authDomain: "the-challenge-league.firebaseapp.com",
+  databaseURL: "https://the-challenge-league-default-rtdb.firebaseio.com",
+  projectId: "the-challenge-league",
+  storageBucket: "the-challenge-league.appspot.com",
+  messagingSenderId: "193530358761",
+  appId: "1:193530358761:web:7b782c8bdd1a8ac7973978",
+  measurementId: "G-ED0WV8KZ6F"
   };
 
   firebase.initializeApp(firebaseConfig);
