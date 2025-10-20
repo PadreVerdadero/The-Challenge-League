@@ -1,3 +1,6 @@
+let playersReady = false;
+let championReady = false;
+
 // Initialize Firebase using compat SDK
 const firebaseConfig = {
   apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
@@ -140,16 +143,25 @@ async function resolveChallenge(challengeId, winnerId) {
   }
 }
 
+function maybeRender() {
+  if (playersReady && championReady) {
+    renderRoster();
+    renderChampion();
+  }
+}
+
 // 🔄 Listeners
 playersRef.on('value', snap => {
   players = snap.val() || {};
-  renderRoster();
-  renderChampion();
+  playersReady = true;
+  maybeRender();
 });
 
 championRef.on('value', snap => {
   championId = snap.val();
+  championReady = true;
   console.log("Champion ID updated to:", championId);
+  maybeRender();
 });
 
 challengesRef.on('value', snap => {
