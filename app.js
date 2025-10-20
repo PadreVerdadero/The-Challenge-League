@@ -88,9 +88,10 @@ function renderRoster() {
       firebase.database().ref('players/' + winnerId + '/points').transaction(p => (p || 0) + 15);
       firebase.database().ref('players/' + loserId + '/points').transaction(p => Math.max(0, (p || 0) - 3));
 
-      if (winnerId === challengerId) {
-        animateCrownTransfer(players[championId].name, p.name);
-        championRef.set(challengerId);
+if (winnerId === challengerId) {
+  animateCrownTransfer(players[championId].name, p.name);
+  await championRef.set(challengerId);
+}
       }
     };
 
