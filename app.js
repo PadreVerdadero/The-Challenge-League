@@ -125,25 +125,6 @@ async function resolveChallenge(challengeId, winnerId) {
     championRef.set(winnerId);
   }
 }
-async function resolveChallenge(challengeId, winnerId) {
-  const snap = await challengesRef.child(challengeId).get();
-  if (!snap.exists()) return;
-  const c = snap.val();
-  const loserId = winnerId === c.challengerId ? c.targetId : c.challengerId;
-
-  challengesRef.child(challengeId).update({
-    status: 'resolved',
-    result: winnerId === c.challengerId ? 'challenger' : 'target'
-  });
-
-  playersRef.child(winnerId).child('points').transaction(p => (p || 0) + 15);
-  playersRef.child(loserId).child('points').transaction(p => Math.max(0, (p || 0) - 3));
-
-  const champSnap = await championRef.get();
-  if (champSnap.exists() && c.targetId === champSnap.val() && winnerId === c.challengerId) {
-    championRef.set(winnerId);
-  }
-}
 
 // 🔄 Listeners
 playersRef.on('value', snap => {
