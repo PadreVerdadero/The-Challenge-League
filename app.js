@@ -52,24 +52,10 @@ function renderRoster() {
       const description = prompt(`Describe the challenge between ${p.name} and ${champion.name}:`);
       if (!description) return;
 
-      // Create dropdown for winner selection
-      const winnerSelect = document.createElement('select');
-      winnerSelect.innerHTML = `
-        <option value="">Select winner</option>
-        <option value="${challengerId}">${p.name}</option>
-        <option value="${championId}">${champion.name}</option>
-      `;
-      document.body.appendChild(winnerSelect);
-      winnerSelect.focus();
-
-      // Wait for selection
-      await new Promise(resolve => {
-        winnerSelect.addEventListener('change', () => resolve());
-      });
-
-      const winnerId = winnerSelect.value;
-      document.body.removeChild(winnerSelect);
-      if (!winnerId) return alert("No winner selected.");
+      const winnerName = prompt(`Who won?\nType "${p.name}" or "${champion.name}"`);
+      const winnerEntry = Object.entries(players).find(([pid, player]) => player.name === winnerName);
+      if (!winnerEntry) return alert("Invalid winner name.");
+      const [winnerId] = winnerEntry;
 
       const challengeId = firebase.database().ref('challenges').push().key;
       const challenge = {
@@ -88,17 +74,9 @@ function renderRoster() {
       firebase.database().ref('players/' + winnerId + '/points').transaction(p => (p || 0) + 15);
       firebase.database().ref('players/' + loserId + '/points').transaction(p => Math.max(0, (p || 0) - 3));
 
-if (winnerId === challengerId) {
-  const oldChampionName = players[championId]?.name || 'Unknown';
-  await championRef.set(challengerId);
-
-  // Wait for Firebase to confirm the new champion
-  championRef.once('value', snap => {
-    const newChampionId = snap.val();
-    const newChampionName = players[newChampionId]?.name || 'Unknown';
-    animateCrownTransfer(oldChampionName, newChampionName);
-  });
-}
+      if (winnerId === challengerId) {
+        animateCrownTransfer(players[championId].name, p.name);
+        championRef.set(challengerId);
       }
     };
 
