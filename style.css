@@ -21,13 +21,9 @@ section {
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-h2 {
-  margin-top: 0;
-}
-
 button {
-  padding: 14px 20px;
-  font-size: 1.2rem;
+  padding: 10px 16px;
+  font-size: 1rem;
   background-color: #007bff;
   color: white;
   border: none;
@@ -39,152 +35,41 @@ button:hover {
   background-color: #0056b3;
 }
 
-input, select {
+input {
   padding: 8px;
-  margin-top: 5px;
   margin-right: 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
 }
 
-.champion-button {
-  border: 2px solid gold;
-  box-shadow: 0 0 8px gold;
-  font-weight: bold;
-  background-color: #fffbe6;
-}
-
-#champion-card {
-  margin-bottom: 20px;
-}
-
-.champ-name {
-  display: inline-block;
-  font-size: 3rem;
-  font-weight: bold;
-  color: gold;
-  margin-bottom: 10px;
-}
-
-#roster {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-#roster button {
-  display: block;
-  width: 100%;
-  padding: 30px 50px;
-  font-size: 1.6rem;
-  border-radius: 8px;
-  background-color: #28a745;
-  font-weight: bold;
-}
-
-#roster button:hover {
-  background-color: #218838;
-}
-
-.lost-to-champion {
-  background-color: #dc3545 !important;
-  color: white;
-}
-
-#roster button.lost-to-champion {
-  background-color: #dc3545 !important;
-  color: white !important;
-}
-
-#roster button.lost-to-champion:hover {
-  background-color: #b02a37 !important;
-}
-
-/* Crown Transfer Animation */
-#crown-transfer {
-  position: fixed;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 2rem;
-  background: gold;
-  padding: 10px 20px;
-  border-radius: 10px;
-  box-shadow: 0 0 10px gold;
-  animation: fadeOut 2s ease-in-out forwards;
-  z-index: 1000;
-}
-
-/* Failed Challenge Animation */
-#challenge-fail {
-  position: fixed;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 2rem;
-  background: #dc3545;
-  color: white;
-  padding: 10px 20px;
-  border-radius: 10px;
-  box-shadow: 0 0 10px #dc3545;
-  animation: fadeOut 2s ease-in-out forwards;
-  z-index: 1000;
-}
-
-@keyframes fadeOut {
-  0% { opacity: 1; transform: translateX(-50%) scale(1); }
-  100% { opacity: 0; transform: translateX(-50%) scale(1.5); }
-}
-
-/* Challenge Queue */
-#challenge-queue {
-  background-color: #e9f7ef;
-  padding: 10px;
-  border-left: 6px solid #28a745;
-  border-radius: 8px;
+.queue-first {
+  background-color: #ffc107;
+  color: #333;
 }
 
 #queue-list {
   list-style: none;
   padding: 0;
-  margin-top: 10px;
 }
 
 #queue-list li {
-  padding: 12px 20px;
-  margin-bottom: 8px;
-  background-color: #fff;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 5px;
+  background-color: #eee;
+  border-radius: 4px;
   cursor: grab;
-  transition: background-color 0.2s;
 }
 
-#queue-list li:hover {
-  background-color: #f1f1f1;
-}
-
-#queue-list li.dragging {
+.dragging {
   opacity: 0.5;
 }
 
-/* Next Challenger Display */
-#next-up {
-  background-color: #fff3cd;
-  border-left: 6px solid #ffc107;
-  padding: 10px;
-  border-radius: 8px;
-}
-
 #next-challenger-name {
-  font-size: 1.4rem;
   font-weight: bold;
-  margin-top: 5px;
+  font-size: 1.2rem;
 }
 
 #challenge-timer {
   font-size: 1.5rem;
-  font-weight: bold;
   color: #dc3545;
-  margin-top: 5px;
 }
