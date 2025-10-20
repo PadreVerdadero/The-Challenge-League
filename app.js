@@ -237,6 +237,13 @@ function maybeRender() {
     renderChampion();
   }
 }
+  function maybeRender() {
+  if (playersReady && championReady) {
+    renderRoster();
+    renderChampion();
+    renderChallengeQueue();
+  }
+}
 function startNextChallengeTimer() {
   if (challengeQueue.length === 0) {
     document.getElementById('next-challenger-name').textContent = 'Waiting...';
@@ -282,6 +289,10 @@ function handleChallengeTimeout(challengerId) {
   function fillChallengeQueue() {
   challengeQueue = Object.keys(players).filter(id => id !== championId);
 }
+  queueList.addEventListener('dragend', () => {
+  const newOrder = [...queueList.querySelectorAll('li')].map(li => li.dataset.id);
+  challengeQueue = newOrder;
+});
 // ➕ Add Player (name only)
 document.getElementById('add-player-button').addEventListener('click', () => {
   console.log("Add Player button clicked");
