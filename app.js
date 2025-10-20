@@ -1,6 +1,3 @@
-let playersReady = false;
-let championReady = false;
-
 // Initialize Firebase using compat SDK
 const firebaseConfig = {
   apiKey: "AIzaSyApvqkHwcKL7dW0NlArkRAByQ8ia8d-TAk",
@@ -25,6 +22,9 @@ const challengesRef = db.ref('challenges');
 let players = {};
 let championId = null;
 let challenges = [];
+
+let playersReady = false;
+let championReady = false;
 
 console.log("App.js loaded");
 
@@ -143,13 +143,6 @@ async function resolveChallenge(challengeId, winnerId) {
   }
 }
 
-function maybeRender() {
-  if (playersReady && championReady) {
-    renderRoster();
-    renderChampion();
-  }
-}
-
 // 🔄 Listeners
 playersRef.on('value', snap => {
   players = snap.val() || {};
@@ -168,6 +161,13 @@ challengesRef.on('value', snap => {
   challenges = snap.val() ? Object.values(snap.val()) : [];
   renderMatchHistory();
 });
+
+function maybeRender() {
+  if (playersReady && championReady) {
+    renderRoster();
+    renderChampion();
+  }
+}
 
 // ➕ Add Player (name only)
 document.getElementById('add-player-button').addEventListener('click', () => {
