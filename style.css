@@ -129,3 +129,14 @@ input, select {
 #roster button.lost-to-champion:hover {
   background-color: #b02a37 !important;
 }
+#next-up {
+  background-color: #fff3cd;
+  border-left: 6px solid #ffc107;
+  padding: 10px;
+  margin-bottom: 20px;
+}
+#challenge-timer {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #dc3545;
+}
