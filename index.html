@@ -3,7 +3,10 @@
 <head>
   <title>Challenge League</title>
   <link rel="stylesheet" href="style.css">
-  <script type="module" src="app.js"></script>
+  <!-- Firebase compat SDK -->
+  <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+  <script defer src="app.js"></script>
 </head>
 <body>
   <h1>🏆 Challenge League</h1>
@@ -13,6 +16,12 @@
   <section id="roster"></section>
 
   <section id="match-history"></section>
+
+  <section id="add-player-form">
+    <h2>Add a New Player</h2>
+    <input type="text" id="new-player-name" placeholder="Player name" />
+    <button id="add-player-button">Add Player</button>
+  </section>
 
   <section id="challenge-queue">
     <h2>Challenge Queue</h2>
