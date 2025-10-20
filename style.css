@@ -26,8 +26,7 @@ h2 {
 }
 
 button {
-  padding: 30px 50px;
-  margin-top: 10px;
+  padding: 14px 20px;
   font-size: 1.2rem;
   background-color: #007bff;
   color: white;
@@ -47,6 +46,7 @@ input, select {
   border: 1px solid #ccc;
   border-radius: 4px;
 }
+
 .champion-button {
   border: 2px solid gold;
   box-shadow: 0 0 8px gold;
@@ -73,20 +73,6 @@ input, select {
   100% { opacity: 0; transform: translateX(-50%) scale(1.5); }
 }
 
-#crown-transfer {
-  position: fixed;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 2rem;
-  background: gold;
-  padding: 10px 20px;
-  border-radius: 10px;
-  box-shadow: 0 0 10px gold;
-  animation: fadeOut 2s ease-in-out forwards;
-  z-index: 1000;
-}
-
 #champion-card {
   margin-bottom: 20px;
 }
@@ -99,15 +85,22 @@ input, select {
   margin-bottom: 10px;
 }
 
-#roster button {
-  display: block;
-  width: 100%;
-  margin: 10px 0;
-  padding: 16px 24px;
-  font-size: 1.4rem;
-}
 #roster {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+#roster button {
+  display: block;
+  width: 100%;
+  padding: 30px 50px;
+  font-size: 1.6rem;
+  border-radius: 8px;
+  background-color: #28a745;
+  font-weight: bold;
+}
+
+#roster button:hover {
+  background-color: #218838;
 }
