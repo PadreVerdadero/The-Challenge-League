@@ -52,3 +52,22 @@ input, select {
   font-weight: bold;
   background-color: #fffbe6;
 }
+
+#crown-transfer {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 2rem;
+  background: gold;
+  padding: 10px 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px gold;
+  animation: fadeOut 2s ease-in-out forwards;
+  z-index: 1000;
+}
+
+@keyframes fadeOut {
+  0% { opacity: 1; transform: translateX(-50%) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) scale(1.5); }
+}
