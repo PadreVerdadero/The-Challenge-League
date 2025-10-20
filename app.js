@@ -98,6 +98,22 @@ function renderRoster() {
   });
 }
 
+// 👑 Crown Transfer Animation
+function animateCrownTransfer(fromName, toName) {
+  const crown = document.createElement('div');
+  crown.id = 'crown-transfer';
+  crown.textContent = `👑 Crown passed from ${fromName} to ${toName}!`;
+  document.body.appendChild(crown);
+  setTimeout(() => crown.remove(), 2000);
+}
+function animateFailedChallenge(challengerName, championName) {
+  const fail = document.createElement('div');
+  fail.id = 'challenge-fail';
+  fail.textContent = `❌ ${challengerName} failed to dethrone ${championName}`;
+  document.body.appendChild(fail);
+  setTimeout(() => fail.remove(), 2000);
+}
+
 // 🕹️ Match History
 function renderMatchHistory() {
   const history = document.getElementById('match-history');
@@ -195,18 +211,3 @@ document.getElementById('add-player-button').addEventListener('click', () => {
   document.getElementById('new-player-name').value = '';
 });
 
-// 👑 Crown Transfer Animation
-function animateCrownTransfer(fromName, toName) {
-  const crown = document.createElement('div');
-  crown.id = 'crown-transfer';
-  crown.textContent = `👑 Crown passed from ${fromName} to ${toName}!`;
-  document.body.appendChild(crown);
-  setTimeout(() => crown.remove(), 2000);
-}
-function animateFailedChallenge(challengerName, championName) {
-  const fail = document.createElement('div');
-  fail.id = 'challenge-fail';
-  fail.textContent = `❌ ${challengerName} failed to dethrone ${championName}`;
-  document.body.appendChild(fail);
-  setTimeout(() => fail.remove(), 2000);
-}
