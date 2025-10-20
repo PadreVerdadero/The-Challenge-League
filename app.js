@@ -195,3 +195,11 @@ document.getElementById('add-player-button').addEventListener('click', () => {
 
   document.getElementById('new-player-name').value = '';
 });
+
+function animateCrownTransfer(fromName, toName) {
+  const crown = document.createElement('div');
+  crown.id = 'crown-transfer';
+  crown.textContent = `👑 Crown passed from ${fromName} to ${toName}!`;
+  document.body.appendChild(crown);
+  setTimeout(() => crown.remove(), 2000);
+}
