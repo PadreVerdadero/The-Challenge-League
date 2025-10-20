@@ -17,6 +17,10 @@ const db = firebase.database();
 
 let defeatedByChampion = new Set();
 let exChampionId = null;
+
+let challengeQueue = [];
+let currentTimer = null;
+let currentChallengerId = null;  
 // References
 const playersRef = db.ref('players');
 const championRef = db.ref('championId');
