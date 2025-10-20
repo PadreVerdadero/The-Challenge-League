@@ -95,3 +95,8 @@ button:hover {
   color: #333;
   font-size: 0.95rem;
 }
+.champ-name {
+  font-size: 1.6rem;
+  font-weight: bold;
+  color: #d4af37; /* gold */
+}
