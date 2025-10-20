@@ -104,3 +104,10 @@ input, select {
 #roster button:hover {
   background-color: #218838;
 }
+.lost-to-champion {
+  background-color: #dc3545 !important;
+  color: white;
+}
+.lost-to-champion:hover {
+  background-color: #b02a37 !important;
+}
