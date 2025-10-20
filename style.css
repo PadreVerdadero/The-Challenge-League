@@ -71,3 +71,9 @@ input, select {
   0% { opacity: 1; transform: translateX(-50%) scale(1); }
   100% { opacity: 0; transform: translateX(-50%) scale(1.5); }
 }
+
+#crown-transfer {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform:
