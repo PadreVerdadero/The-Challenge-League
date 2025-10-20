@@ -112,7 +112,20 @@ input, select {
   background-color: #dc3545 !important;
   color: white !important;
 }
-
+#challenge-fail {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 2rem;
+  background: #dc3545;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px #dc3545;
+  animation: fadeOut 2s ease-in-out forwards;
+  z-index: 1000;
+}
 #roster button.lost-to-champion:hover {
   background-color: #b02a37 !important;
 }
