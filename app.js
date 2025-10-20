@@ -75,14 +75,15 @@ function renderRoster() {
       firebase.database().ref('players/' + loserId + '/points').transaction(p => Math.max(0, (p || 0) - 3));
 
       if (winnerId === challengerId) {
-        animateCrownTransfer(players[championId].name, p.name);
-        championRef.set(challengerId);
+        animateCrownTransfer(players[championId]?.name || 'Unknown', p.name);
+        await championRef.set(challengerId);
       }
     };
 
     roster.appendChild(btn);
   });
 }
+
 // 🕹️ Match History
 function renderMatchHistory() {
   const history = document.getElementById('match-history');
@@ -109,7 +110,8 @@ function renderMatchHistory() {
     history.appendChild(entry);
   });
 }
-// 🏁 Resolve Challenge
+
+// 🏁 Resolve Challenge (legacy flow)
 function resolvePrompt(challenge) {
   const winnerName = prompt(`Who won?\n${players[challenge.challengerId].name} or ${players[challenge.targetId].name}`);
   const winnerEntry = Object.entries(players).find(([id, p]) => p.name === winnerName);
@@ -147,8 +149,7 @@ playersRef.on('value', snap => {
 
 championRef.on('value', snap => {
   championId = snap.val();
-  renderRoster();
-  renderChampion();
+  console.log("Champion ID updated to:", championId);
 });
 
 challengesRef.on('value', snap => {
@@ -182,6 +183,7 @@ document.getElementById('add-player-button').addEventListener('click', () => {
   document.getElementById('new-player-name').value = '';
 });
 
+// 👑 Crown Transfer Animation
 function animateCrownTransfer(fromName, toName) {
   const crown = document.createElement('div');
   crown.id = 'crown-transfer';
