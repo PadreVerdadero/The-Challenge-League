@@ -57,6 +57,9 @@ button:hover {
   background-color: #eee;
   border-radius: 6px;
   cursor: grab;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .dragging {
@@ -85,4 +88,10 @@ button:hover {
   border-radius: 8px;
   z-index: 9999;
   box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+}
+
+#add-player-log {
+  margin-top: 8px;
+  color: #333;
+  font-size: 0.95rem;
 }
