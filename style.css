@@ -140,3 +140,25 @@ input, select {
   font-weight: bold;
   color: #dc3545;
 }
+#challenge-queue {
+  margin-bottom: 30px;
+  background-color: #e9f7ef;
+  padding: 10px;
+  border-left: 6px solid #28a745;
+  border-radius: 8px;
+}
+#queue-list {
+  list-style: none;
+  padding: 0;
+}
+#queue-list li {
+  padding: 12px 20px;
+  margin-bottom: 8px;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  cursor: grab;
+}
+#queue-list li.dragging {
+  opacity: 0.5;
+}
