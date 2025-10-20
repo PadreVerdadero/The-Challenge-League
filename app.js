@@ -13,6 +13,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+let defeatedByChampion = new Set();
+let exChampionId = null;
 // References
 const playersRef = db.ref('players');
 const championRef = db.ref('championId');
@@ -47,6 +49,12 @@ function renderRoster() {
 
     const btn = document.createElement('button');
     btn.textContent = p.name;
+
+    // Apply red style if they lost to current champion or are ex-champion
+    if (defeatedByChampion.has(id) || id === exChampionId) {
+      btn.classList.add('lost-to-champion');
+    }
+
     btn.onclick = async () => {
       const challengerId = id;
       const champion = players[championId];
@@ -73,10 +81,16 @@ function renderRoster() {
 
       await firebase.database().ref('challenges/' + challengeId).set(challenge);
 
+      // Update defeat tracking
       if (winnerId === challengerId) {
-        animateCrownTransfer(players[championId]?.name || 'Unknown', p.name);
+        defeatedByChampion.clear(); // reset all
+        exChampionId = championId;
         await championRef.set(challengerId);
+      } else {
+        defeatedByChampion.add(challengerId);
       }
+
+      renderRoster(); // refresh button styles
     };
 
     roster.appendChild(btn);
@@ -134,9 +148,12 @@ playersRef.on('value', snap => {
 });
 
 championRef.on('value', snap => {
-  championId = snap.val();
+  const newChampionId = snap.val();
+  if (championId && championId !== newChampionId) {
+    exChampionId = championId;
+  }
+  championId = newChampionId;
   championReady = true;
-  console.log("Champion ID updated to:", championId);
   maybeRender();
 });
 
