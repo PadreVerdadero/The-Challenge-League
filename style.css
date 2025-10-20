@@ -92,3 +92,8 @@ input, select {
   color: #222;
   margin-bottom: 20px;
 }
+.champ-name {
+  font-size: 3rem;
+  color: gold;
+  text-shadow: 0 0 8px gold;
+}
