@@ -59,6 +59,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const roster = document.getElementById('roster');
     roster.innerHTML = '<h2>Roster</h2>';
 
+    if (Object.keys(players).length === 0) {
+      roster.innerHTML += '<p>No players found.</p>';
+      return;
+    }
+
     Object.entries(players).forEach(([id, p]) => {
       if (id === championId) return;
 
@@ -230,10 +235,4 @@ document.addEventListener("DOMContentLoaded", () => {
       if (timeLeft <= 0) {
         clearInterval(currentTimer);
         handleChallengeTimeout(currentChallengerId);
-        startNextChallengeTimer();
-      }
-    }, 1000);
-  }
-
-  function handleChallengeTimeout(challengerId) {
-    const challengeId = firebase.database().ref('ch
+       
