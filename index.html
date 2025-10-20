@@ -3,46 +3,34 @@
 <head>
   <title>Challenge League</title>
   <link rel="stylesheet" href="style.css">
-  <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-  <script defer src="app.js"></script>
+  <!-- Firebase Modular SDK -->
+  <script type="module" src="app.js"></script>
 </head>
 <body>
   <h1>🏆 Challenge League</h1>
 
-  <!-- Champion Display -->
-  <section id="champion-card">
-    <!-- Champion info will appear here -->
-  </section>
+  <section id="champion-card"></section>
 
-  <!-- Roster -->
   <section id="roster">
     <h2>Roster</h2>
-    <!-- Player buttons will appear here -->
   </section>
 
-  <!-- Match History -->
   <section id="match-history">
     <h2>Match History</h2>
-    <!-- Resolved matches will appear here -->
   </section>
 
-  <!-- Add Player -->
   <section id="add-player-form">
     <h2>Add a New Player</h2>
     <input type="text" id="new-player-name" placeholder="Player name" />
     <button id="add-player-button">Add Player</button>
   </section>
 
-  <!-- Challenge Queue -->
   <section id="challenge-queue">
     <h2>Challenge Queue</h2>
     <ul id="queue-list"></ul>
-    <button onclick="startNextChallengeTimer()">Start Queue</button>
+    <button id="start-queue-button">Start Queue</button>
   </section>
 
-  <!-- Next Challenger & Timer -->
   <section id="next-up">
     <h2>Next Challenger</h2>
     <div id="next-challenger-name">Waiting...</div>
