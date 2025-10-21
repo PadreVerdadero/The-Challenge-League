@@ -1,6 +1,29 @@
-const players = {};
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+import {
+  getDatabase,
+  ref,
+  onValue,
+  set,
+  push
+} from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBSCn8-SpgtrJz3SRBWfiLL-WXylProWqU",
+  authDomain: "challengeleague-ec503.firebaseapp.com",
+  databaseURL: "https://challengeleague-ec503-default-rtdb.firebaseio.com",
+  projectId: "challengeleague-ec503",
+  storageBucket: "challengeleague-ec503.appspot.com",
+  messagingSenderId: "120184354429",
+  appId: "1:120184354429:web:e28ea3cd8c177b3cd72314"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let players = {};
 let championId = null;
-const defeated = new Set();
+let matches = [];
+let defeated = new Set();
 
 const $ = id => document.getElementById(id);
 
@@ -24,27 +47,46 @@ function renderRoster() {
   });
 }
 
+function renderMatchHistory() {
+  const list = $('match-list');
+  list.innerHTML = '';
+  matches.slice().reverse().forEach(m => {
+    const time = new Date(m.timestamp).toLocaleString();
+    const div = document.createElement('div');
+    div.textContent = `🏁 ${m.challenger} vs ${m.champion} — Winner: ${m.winner} (${time})`;
+    list.appendChild(div);
+  });
+}
+
 function handleChallenge(challengerId) {
   if (!championId) {
     if (confirm(`${players[challengerId].name} selected. Make them champion?`)) {
-      championId = challengerId;
-      defeated.delete(challengerId);
-      renderChampion();
-      renderRoster();
+      set(ref(db, 'championId'), challengerId);
     }
     return;
   }
 
   const champ = players[championId];
-  const desc = prompt(`Describe the challenge between ${players[challengerId].name} and ${champ.name}:`);
-  if (!desc) return;
+  const description = prompt(`Describe the challenge between ${players[challengerId].name} and ${champ.name}:`);
+  if (!description) return;
 
-  const winner = prompt(`Who won?\nType "${players[challengerId].name}" or "${champ.name}"`);
-  if (!winner) return;
+  const winnerName = prompt(`Who won?\nType "${players[challengerId].name}" or "${champ.name}"`);
+  if (!winnerName) return;
 
-  if (winner === players[challengerId].name) {
+  const match = {
+    challenger: players[challengerId].name,
+    champion: champ.name,
+    winner: winnerName,
+    description,
+    timestamp: Date.now()
+  };
+
+  const matchRef = push(ref(db, 'matches'));
+  set(matchRef, match);
+
+  if (winnerName === players[challengerId].name) {
     defeated.add(championId);
-    championId = challengerId;
+    set(ref(db, 'championId'), challengerId);
     defeated.delete(challengerId);
     triggerConfetti();
     alert(`${players[challengerId].name} is the new champion!`);
@@ -61,10 +103,9 @@ function addPlayer() {
   const name = $('new-player-name').value.trim();
   if (!name) return;
   const id = name.toLowerCase().replace(/\s+/g, '-');
-  players[id] = { name };
+  set(ref(db, `players/${id}`), { name });
   $('new-player-name').value = '';
   $('add-player-log').textContent = `Added ${name}`;
-  renderRoster();
 }
 
 $('add-player-button').onclick = addPlayer;
@@ -107,3 +148,21 @@ function triggerConfetti() {
   }
   draw();
 }
+
+// Firebase listeners
+onValue(ref(db, 'players'), snap => {
+  players = snap.val() || {};
+  renderRoster();
+});
+
+onValue(ref(db, 'championId'), snap => {
+  championId = snap.val();
+  renderChampion();
+  renderRoster();
+});
+
+onValue(ref(db, 'matches'), snap => {
+  const val = snap.val();
+  matches = val ? Object.values(val) : [];
+  renderMatchHistory();
+});
