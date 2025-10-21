@@ -1,4 +1,4 @@
-// app.js (modular Firebase SDK) — enhancements: tooltips, champion gold badge, confetti on dethrone
+// app.js (modular Firebase SDK) — complete file with challenge flow, animations, confetti, and defeat styling
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import {
   getDatabase,
@@ -117,92 +117,95 @@ function renderRoster() {
     entry.style.alignItems = 'center';
     entry.style.gap = '8px';
 
-    // Replace the existing nameBtn click handler with this:
-nameBtn.addEventListener('click', async () => {
-  // select visual
-  selectedPlayerId = id;
-  Array.from(document.querySelectorAll('#roster button')).forEach(b => b.style.outline = '');
-  nameBtn.style.outline = '2px solid #007bff';
+    const nameBtn = document.createElement('button');
+    nameBtn.textContent = p.name;
+    nameBtn.style.flexGrow = '1';
+    nameBtn.dataset.id = id;
+    nameBtn.classList.add('button-tooltip');
+    nameBtn.setAttribute('data-tooltip', defeatedByChampion.has(id) ? 'Lost to champion' : '');
 
-  // also add to queue front
-  challengeQueue = [id, ...challengeQueue.filter(qid => qid !== id)];
-  renderChallengeQueue();
-
-  // If there is no champion, prompt to optionally create one instead of a challenge
-  if (!championId) {
-    const makeChampion = confirm(`${players[id].name} selected but there is no champion. Make them champion?`);
-    if (makeChampion) {
-      await set(ref(db, 'championId'), id);
-      logAddPlayer(`Champion set to ${players[id].name}`);
-      // ensure local UI updates
-      defeatedByChampion.delete(id);
-      renderChampion();
-      renderRoster();
-    }
-    return;
-  }
-
-  // Prompt for challenge description
-  const description = prompt(`Describe the challenge between ${players[id].name} and ${players[championId]?.name || 'Champion'}:`);
-  if (description === null) return; // user cancelled
-
-  // Prompt for winner; suggestions shown for convenience
-  const winnerName = prompt(`Who won? Type the exact winner name:\nOptions: ${players[id].name} or ${players[championId]?.name || ''}`);
-  if (winnerName === null) return; // cancelled
-
-  // Find winnerId by matching exact name; fallback to champion if unclear
-  const winnerEntry = Object.entries(players).find(([pid, p]) => p.name === winnerName);
-  const winnerId = winnerEntry ? winnerEntry[0] : (winnerName === players[id].name ? id : championId);
-
-  // Build and write challenge record
-  const challengeRef = push(ref(db, 'challenges'));
-  const challengeId = challengeRef.key;
-  const challenge = {
-    id: challengeId,
-    challengerId: id,
-    targetId: championId,
-    description,
-    winnerId,
-    timestamp: Date.now(),
-    status: 'resolved'
-  };
-
-  try {
-    await set(ref(db, 'challenges/' + challengeId), challenge);
-
-    // If challenger won, transfer crown
-    if (winnerId === id) {
-      const prevChampion = championId;
-      await set(ref(db, 'championId'), id);
-      // ensure previous champion marked as defeated
-      if (prevChampion && prevChampion !== id) defeatedByChampion.add(prevChampion);
-      defeatedByChampion.delete(id);
-      animateCrownTransfer(players[prevChampion]?.name || 'Unknown', players[id].name);
-      triggerConfetti();
-      logAddPlayer(`${players[id].name} dethroned ${players[prevChampion]?.name || 'Champion'}`);
+    if (defeatedByChampion.has(id)) {
+      nameBtn.classList.add('lost-to-champion');
     } else {
-      // challenger lost to champion
-      defeatedByChampion.add(id);
-      animateFailedChallenge(players[id].name, players[championId]?.name || 'Champion');
-      logAddPlayer(`${players[id].name} lost to ${players[championId]?.name || 'Champion'}`);
+      nameBtn.classList.remove('lost-to-champion');
     }
 
-    // Update UI optimistically; listeners will reconcile with DB
-    renderRoster();
-    renderChampion();
-    renderMatchHistory();
-  } catch (e) {
-    console.error('Error recording challenge', e);
-    logAddPlayer('Error recording challenge: ' + e.message);
-  }
-});
-
-    nameBtn.addEventListener('click', () => {
+    // CLICK HANDLER: selection + challenge flow
+    nameBtn.addEventListener('click', async () => {
+      // select visual
       selectedPlayerId = id;
       Array.from(document.querySelectorAll('#roster button')).forEach(b => b.style.outline = '');
       nameBtn.style.outline = '2px solid #007bff';
+
+      // add to queue front and update UI
       challengeQueue = [id, ...challengeQueue.filter(qid => qid !== id)];
       renderChallengeQueue();
+
+      // If no champion, offer to make selected player the champion
+      if (!championId) {
+        const makeChampion = confirm(`${players[id].name} selected but there is no champion. Make them champion?`);
+        if (makeChampion) {
+          await set(ref(db, 'championId'), id);
+          logAddPlayer(`Champion set to ${players[id].name}`);
+          defeatedByChampion.delete(id);
+          renderChampion();
+          renderRoster();
+        }
+        return;
+      }
+
+      // Prompt for challenge description
+      const description = prompt(`Describe the challenge between ${players[id].name} and ${players[championId]?.name || 'Champion'}:`);
+      if (description === null) return; // user cancelled
+
+      // Prompt for winner with clear options
+      const winnerName = prompt(`Who won? Type the exact winner name:\nOptions: ${players[id].name} or ${players[championId]?.name || ''}`);
+      if (winnerName === null) return; // user cancelled
+
+      // Resolve winnerId by exact name match; fallback to champion
+      const winnerEntry = Object.entries(players).find(([pid, p]) => p.name === winnerName);
+      const winnerId = winnerEntry ? winnerEntry[0] : (winnerName === players[id].name ? id : championId);
+
+      // Build and write challenge record
+      const challengeRef = push(ref(db, 'challenges'));
+      const challengeId = challengeRef.key;
+      const challenge = {
+        id: challengeId,
+        challengerId: id,
+        targetId: championId,
+        description,
+        winnerId,
+        timestamp: Date.now(),
+        status: 'resolved'
+      };
+
+      try {
+        await set(ref(db, 'challenges/' + challengeId), challenge);
+
+        // If challenger won, transfer crown
+        if (winnerId === id) {
+          const prevChampion = championId;
+          await set(ref(db, 'championId'), id);
+          if (prevChampion && prevChampion !== id) defeatedByChampion.add(prevChampion);
+          defeatedByChampion.delete(id);
+          animateCrownTransfer(players[prevChampion]?.name || 'Unknown', players[id].name);
+          triggerConfetti();
+          logAddPlayer(`${players[id].name} dethroned ${players[prevChampion]?.name || 'Champion'}`);
+        } else {
+          // challenger lost to champion
+          defeatedByChampion.add(id);
+          animateFailedChallenge(players[id].name, players[championId]?.name || 'Champion');
+          logAddPlayer(`${players[id].name} lost to ${players[championId]?.name || 'Champion'}`);
+        }
+
+        // Optimistically update UI; listeners will reconcile with DB
+        renderRoster();
+        renderChampion();
+        renderMatchHistory();
+      } catch (e) {
+        console.error('Error recording challenge', e);
+        logAddPlayer('Error recording challenge: ' + e.message);
+      }
     });
 
     const queueBtn = document.createElement('button');
@@ -313,7 +316,6 @@ async function handleChallengeTimeout(challengerId) {
     status: 'timeout'
   };
   await set(ref(db, 'challenges/' + challengeId), challenge);
-
   if (championId) defeatedByChampion.add(challengerId);
   renderRoster();
   renderMatchHistory();
@@ -357,11 +359,14 @@ async function createChampionFromSelected() {
   }
 }
 
-// UI wiring
+// wiring UI
 function wireUi() {
-  $('add-player-button').addEventListener('click', addPlayerFromInput);
-  $('create-champion-button').addEventListener('click', createChampionFromSelected);
-  $('start-queue-button').addEventListener('click', startNextChallengeTimer);
+  const addBtn = $('add-player-button');
+  if (addBtn) addBtn.addEventListener('click', addPlayerFromInput);
+  const createChampBtn = $('create-champion-button');
+  if (createChampBtn) createChampBtn.addEventListener('click', createChampionFromSelected);
+  const startQueueBtn = $('start-queue-button');
+  if (startQueueBtn) startQueueBtn.addEventListener('click', startNextChallengeTimer);
 }
 
 // Firebase listeners
@@ -412,7 +417,7 @@ function wireFirebaseListeners() {
         }
       });
       defeatedByChampion = newDefeated;
-      if (championId && defeatedByChampion.has(championId) === false) {
+      if (championId && !defeatedByChampion.has(championId)) {
         defeatedByChampion.delete(championId);
       }
     }
