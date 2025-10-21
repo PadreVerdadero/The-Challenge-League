@@ -1,4 +1,4 @@
-// app.js (modular Firebase SDK) — updated to your new DB
+// app.js (modular Firebase SDK) — enhancements: tooltips, champion gold badge, confetti on dethrone
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import {
   getDatabase,
@@ -6,7 +6,6 @@ import {
   onValue,
   set,
   push,
-  child,
   get
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
@@ -31,12 +30,14 @@ let challengeQueue = [];
 let currentTimer = null;
 let currentChallengerId = null;
 let selectedPlayerId = null;
+let defeatedByChampion = new Set();
 
-// small UI helpers
+// helpers
 function $(id) { return document.getElementById(id); }
-function logAddPlayer(msg) { const el = $('add-player-log'); el.textContent = msg; }
+function logAddPlayer(msg) { const el = $('add-player-log'); if (el) el.textContent = msg; }
+function escapeHtml(str) { return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
 
-// notifications
+// notifications & confetti
 function animateCrownTransfer(fromName, toName) {
   const crown = document.createElement('div');
   crown.id = 'crown-transfer';
@@ -50,6 +51,45 @@ function animateFailedChallenge(challengerName, championName) {
   fail.textContent = `❌ ${challengerName} failed to dethrone ${championName}`;
   document.body.appendChild(fail);
   setTimeout(() => fail.remove(), 2000);
+}
+function triggerConfetti() {
+  const canvas = $('confetti-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+  const particles = [];
+  const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'];
+  for (let i=0;i<120;i++){
+    particles.push({
+      x: Math.random()*canvas.width,
+      y: -20 - Math.random()*canvas.height/2,
+      vx: (Math.random()-0.5)*6,
+      vy: 2 + Math.random()*6,
+      size: 6 + Math.random()*8,
+      color: colors[Math.floor(Math.random()*colors.length)],
+      rotation: Math.random()*360
+    });
+  }
+  let t = 0;
+  function draw() {
+    t++;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p=>{
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.05;
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.rotation*Math.PI/180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6);
+      ctx.restore();
+    });
+    if (t < 140) requestAnimationFrame(draw);
+    else ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  draw();
 }
 
 // rendering
@@ -70,6 +110,8 @@ function renderRoster() {
   }
 
   Object.entries(players).forEach(([id, p]) => {
+    if (id === championId) return; // exclude current champion
+
     const entry = document.createElement('div');
     entry.style.display = 'flex';
     entry.style.alignItems = 'center';
@@ -79,14 +121,19 @@ function renderRoster() {
     nameBtn.textContent = p.name;
     nameBtn.style.flexGrow = '1';
     nameBtn.dataset.id = id;
+    nameBtn.classList.add('button-tooltip');
+    nameBtn.setAttribute('data-tooltip', defeatedByChampion.has(id) ? 'Lost to champion' : '');
 
-    // clicking a player selects them (for create champion) and queues them
+    if (defeatedByChampion.has(id)) {
+      nameBtn.classList.add('lost-to-champion');
+    } else {
+      nameBtn.classList.remove('lost-to-champion');
+    }
+
     nameBtn.addEventListener('click', () => {
-      // select visual
       selectedPlayerId = id;
       Array.from(document.querySelectorAll('#roster button')).forEach(b => b.style.outline = '');
       nameBtn.style.outline = '2px solid #007bff';
-      // also add to queue front
       challengeQueue = [id, ...challengeQueue.filter(qid => qid !== id)];
       renderChallengeQueue();
     });
@@ -151,7 +198,7 @@ function renderChallengeQueue() {
 
 // timer logic
 function startNextChallengeTimer() {
-  if (currentTimer) return; // already running
+  if (currentTimer) return;
   if (challengeQueue.length === 0) {
     $('next-challenger-name').textContent = 'Waiting...';
     $('challenge-timer').textContent = '--:--';
@@ -199,7 +246,9 @@ async function handleChallengeTimeout(challengerId) {
     status: 'timeout'
   };
   await set(ref(db, 'challenges/' + challengeId), challenge);
-  // update local arrays after write will come from listener, but update UI optimistically
+
+  if (championId) defeatedByChampion.add(challengerId);
+  renderRoster();
   renderMatchHistory();
 }
 
@@ -222,20 +271,26 @@ async function addPlayerFromInput() {
 async function createChampionFromSelected() {
   if (!selectedPlayerId) { logAddPlayer('Select a player first by clicking their name.'); return; }
   try {
+    const previousChampion = championId;
     await set(ref(db, 'championId'), selectedPlayerId);
+
+    if (previousChampion && previousChampion !== selectedPlayerId) {
+      defeatedByChampion.add(previousChampion);
+      triggerConfetti();
+      animateCrownTransfer(players[previousChampion]?.name || previousChampion, players[selectedPlayerId]?.name || selectedPlayerId);
+    }
+
+    defeatedByChampion.delete(selectedPlayerId);
     logAddPlayer(`Champion set to ${players[selectedPlayerId]?.name || selectedPlayerId}`);
+    renderRoster();
+    renderChampion();
   } catch (e) {
     logAddPlayer(`Error creating champion: ${e.message}`);
     console.error(e);
   }
 }
 
-// utility
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
-}
-
-// wiring UI events
+// UI wiring
 function wireUi() {
   $('add-player-button').addEventListener('click', addPlayerFromInput);
   $('create-champion-button').addEventListener('click', createChampionFromSelected);
@@ -247,27 +302,55 @@ function wireFirebaseListeners() {
   onValue(ref(db, 'players'), snap => {
     players = snap.val() || {};
     console.log('players snapshot', players);
-    renderRoster();
-    // If queue is empty, fill it with all non-champion players
     if (challengeQueue.length === 0) {
       challengeQueue = Object.keys(players).filter(id => id !== championId);
     }
+    renderRoster();
     renderChallengeQueue();
     renderMatchHistory();
   });
 
   onValue(ref(db, 'championId'), snap => {
     const newChampionId = snap.val();
+    const prev = championId;
     championId = newChampionId;
     console.log('championId snapshot', championId);
+
+    if (prev && prev !== championId) {
+      defeatedByChampion.add(prev);
+      triggerConfetti();
+      animateCrownTransfer(players[prev]?.name || prev, players[championId]?.name || championId);
+    }
+    if (championId) defeatedByChampion.delete(championId);
+
     renderChampion();
+    renderRoster();
   });
 
   onValue(ref(db, 'challenges'), snap => {
     const val = snap.val();
     challenges = val ? Object.values(val) : [];
     console.log('challenges snapshot', challenges);
+
+    if (championId) {
+      const newDefeated = new Set();
+      challenges.forEach(c => {
+        if (c.status === 'resolved' || c.status === 'timeout') {
+          if (c.winnerId === championId && c.challengerId && c.challengerId !== championId) {
+            newDefeated.add(c.challengerId);
+          }
+          if (c.targetId === championId && c.winnerId !== championId) {
+            newDefeated.add(championId);
+          }
+        }
+      });
+      defeatedByChampion = newDefeated;
+      if (championId && defeatedByChampion.has(championId) === false) {
+        defeatedByChampion.delete(championId);
+      }
+    }
     renderMatchHistory();
+    renderRoster();
   });
 }
 
@@ -275,12 +358,10 @@ function wireFirebaseListeners() {
 document.addEventListener('DOMContentLoaded', async () => {
   wireUi();
   wireFirebaseListeners();
-
-  // quick connectivity test: try to read a small path and log result
   try {
     const rootSnapshot = await get(ref(db, '/'));
     console.log('Initial DB root:', rootSnapshot.val());
-    logAddPlayer('Connected to Firebase.'); 
+    logAddPlayer('Connected to Firebase.');
   } catch (e) {
     console.error('Firebase connectivity test failed', e);
     logAddPlayer('Failed to connect to Firebase. Check rules and network.');
