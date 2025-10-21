@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <title>Challenge League</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
   <script type="module" src="app.js"></script>
 </head>
@@ -15,9 +16,9 @@
 
   <section id="add-player-form">
     <h2>Add a New Player</h2>
-    <input type="text" id="new-player-name" placeholder="Player name" />
+    <input id="new-player-name" placeholder="Player name" />
     <button id="add-player-button">Add Player</button>
-    <div id="add-player-log"></div>
+    <div id="add-player-log" aria-live="polite"></div>
   </section>
 
   <section id="match-history">
