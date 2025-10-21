@@ -159,9 +159,17 @@ onValue(ref(db, 'players'), snap => {
 });
 
 onValue(ref(db, 'championId'), snap => {
-  championId = snap.val();
+  const newChampionId = snap.val();
+  const previousChampionId = championId;
+  championId = newChampionId;
   console.log('champion snapshot', championId);
-  if (championId && defeated.has(championId)) defeated.delete(championId);
+
+  // Reset all defeat markers when a new champion is crowned
+  if (previousChampionId && previousChampionId !== newChampionId) {
+    defeated.clear();
+    console.log('Defeated list cleared due to new champion');
+  }
+
   renderChampion();
   renderRoster();
 });
