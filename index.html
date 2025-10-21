@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <title>Challenge League</title>
   <link rel="stylesheet" href="style.css" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script type="module" src="app.js"></script>
 </head>
 <body>
@@ -14,28 +13,13 @@
 
   <section id="roster"></section>
 
-  <section id="match-history"></section>
-
   <section id="add-player-form">
     <h2>Add a New Player</h2>
     <input type="text" id="new-player-name" placeholder="Player name" />
     <button id="add-player-button">Add Player</button>
-    <button id="create-champion-button">Create Champion from Selected</button>
-    <div id="add-player-log" aria-live="polite"></div>
+    <div id="add-player-log"></div>
   </section>
 
-  <section id="challenge-queue">
-    <h2>Challenge Queue</h2>
-    <ul id="queue-list"></ul>
-    <button id="start-queue-button">Start Queue</button>
-  </section>
-
-  <section id="next-up">
-    <h2>Next Challenger</h2>
-    <div id="next-challenger-name">Waiting...</div>
-    <div id="challenge-timer">--:--</div>
-  </section>
-
-  <canvas id="confetti-canvas" style="position:fixed;pointer-events:none;top:0;left:0;width:100%;height:100%;z-index:10000;"></canvas>
+  <canvas id="confetti-canvas"></canvas>
 </body>
 </html>
