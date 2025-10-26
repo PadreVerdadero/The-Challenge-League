@@ -56,8 +56,10 @@ button:hover { background: #0056b3; }
 
 #timer-display.expired { color: #dc3545; font-weight:700; }
 
-#historical-list div { padding:6px 4px; border-bottom:1px solid #efefef; font-size:0.95rem; }
+#timer-display.pending { color: #333; font-weight:700; font-style:italic; }
 
-/* Inline champion chooser */
 .champion-chooser { display:inline-block; margin-left:8px; vertical-align:middle; }
 .champion-chooser select, .champion-chooser button { margin-left:6px; }
+
+/* explosion animation canvas overlay styles */
+.explosion-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 9998; }
