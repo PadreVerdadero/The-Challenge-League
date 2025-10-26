@@ -39,45 +39,85 @@ function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ----- helpers -----
+// persistDefeat now updates local defeated set immediately and re-renders
 async function persistDefeat(id) {
-  try { await set(ref(db, `defeats/${id}`), true); console.log('persistDefeat saved for', id); }
-  catch(e){ console.error('persistDefeat failed for', id, e); }
+  try {
+    await set(ref(db, `defeats/${id}`), true);
+    // update local mirror immediately so UI updates without waiting for DB event
+    defeated.add(id);
+    console.log('persistDefeat saved for', id, 'and added to local set');
+    renderRoster();
+  } catch (e) {
+    console.error('persistDefeat failed for', id, e);
+  }
 }
+
+// removeDefeat updates local set immediately
 async function removeDefeat(id) {
-  try { await remove(ref(db, `defeats/${id}`)); console.log('removeDefeat removed for', id); }
-  catch(e){ console.error('removeDefeat failed for', id, e); }
+  try {
+    await remove(ref(db, `defeats/${id}`));
+    defeated.delete(id);
+    console.log('removeDefeat removed for', id, 'and removed from local set');
+    renderRoster();
+  } catch (e) {
+    console.error('removeDefeat failed for', id, e);
+  }
 }
+
+// clearAllDefeats updates local set immediately
 async function clearAllDefeats() {
-  try { await remove(ref(db, 'defeats')); console.log('clearAllDefeats removed /defeats'); }
-  catch(e){ console.error('clearAllDefeats failed', e); }
+  try {
+    await remove(ref(db, 'defeats'));
+    defeated = new Set();
+    console.log('clearAllDefeats removed /defeats and cleared local set');
+    renderRoster();
+  } catch (e) {
+    console.error('clearAllDefeats failed', e);
+  }
 }
+
 async function savePlayersOrder() {
   try {
     const obj = {};
     playersOrderArr.forEach((id, idx) => obj[idx] = id);
     await set(ref(db, 'playersOrder'), obj);
     console.log('playersOrder saved', playersOrderArr);
-  } catch(e){ console.error('savePlayersOrder failed', e); }
+  } catch (e) {
+    console.error('savePlayersOrder failed', e);
+  }
 }
+
 async function writeMatch(match) {
-  try { const mRef = push(ref(db, 'matches')); await set(mRef, match); console.log('match written', match); }
-  catch(e){ console.error('writeMatch failed', e); }
+  try {
+    const mRef = push(ref(db, 'matches'));
+    await set(mRef, match);
+    console.log('match written', match);
+  } catch (e) {
+    console.error('writeMatch failed', e);
+  }
 }
+
 async function addHistoricalChampion(champId, champName) {
-  try { const entry = { id: champId, name: champName, timestamp: Date.now() }; const hRef = push(ref(db, 'historicalChampions')); await set(hRef, entry); console.log('Added historical champion', entry); }
-  catch(e){ console.error('addHistoricalChampion failed', e); }
+  try {
+    const entry = { id: champId, name: champName, timestamp: Date.now() };
+    const hRef = push(ref(db, 'historicalChampions'));
+    await set(hRef, entry);
+    console.log('Added historical champion', entry);
+  } catch (e) {
+    console.error('addHistoricalChampion failed', e);
+  }
 }
 
 // ----- timer -----
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-async function setTimerEnd(msTimestamp) { try { await set(ref(db, 'timer/endTimestamp'), msTimestamp); console.log('Timer end set to', msTimestamp); } catch(e){ console.error('setTimerEnd failed', e); } }
+async function setTimerEnd(msTimestamp) { try { await set(ref(db, 'timer/endTimestamp'), msTimestamp); console.log('Timer end set to', msTimestamp); } catch (e) { console.error('setTimerEnd failed', e); } }
 async function startTimerOneWeek() { const end = Date.now() + WEEK_MS; await setTimerEnd(end); }
 function clearLocalInterval() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
 function startLocalCountdown() { clearLocalInterval(); updateTimerDisplay(); timerInterval = setInterval(updateTimerDisplay, 1000); }
 function formatDuration(ms) { if (ms <= 0) return '00:00:00:00'; const sec = Math.floor(ms/1000); const days = Math.floor(sec/86400); const hrs = Math.floor((sec%86400)/3600); const mins = Math.floor((sec%3600)/60); const s = sec%60; return `${String(days).padStart(2,'0')}:${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 function updateTimerDisplay() {
   const el = $('timer-display');
-  if (!el) return; // guard if DOM not ready
+  if (!el) return;
   if (!timerEnd) { el.textContent = 'No active challenge'; el.classList.remove('expired'); return; }
   const remaining = timerEnd - Date.now();
   if (remaining > 0) { el.textContent = `Time left: ${formatDuration(remaining)}`; el.classList.remove('expired'); }
@@ -88,22 +128,17 @@ function updateTimerDisplay() {
 }
 
 // ----- assign champion UI and logic -----
-// assignNewChampionFromUI now clears all defeats and sets new champion
+// assignNewChampionFromUI clears defeats and sets champion
 async function assignNewChampionFromUI(newChampionId) {
   if (!newChampionId) return;
-
-  // Clear all defeat flags so everyone turns blue
+  // Clear all defeat flags so everyone turns blue locally and in DB
   await clearAllDefeats();
-
   // Ensure the selected champion is not marked defeated
   await removeDefeat(newChampionId);
-
   // Persist champion change
   await set(ref(db, 'championId'), newChampionId);
-
-  // Restart the week timer when champion assigned
+  // Restart week timer
   await startTimerOneWeek();
-
   renderChampion();
   renderRoster();
 }
@@ -138,7 +173,7 @@ async function handleTimerExpiry() {
     const champName = players[championId]?.name || 'Champion';
     alert(`Congratulations ${champName}! All challengers are defeated.`);
     await addHistoricalChampion(championId, champName);
-    // user should use Assign Champion control to set next champion
+    // instruct user to use assign control to pick next champion
   } else {
     await startTimerOneWeek();
   }
@@ -309,11 +344,13 @@ async function handleRosterClick(id) {
 
     if (winnerId === id) {
       const prevChampion = championId;
-      await clearAllDefeats(); // reset all defeats (everyone blue)
+      // Reset defeats locally & in DB
+      await clearAllDefeats();
+      // Previous champion becomes defeated and moves to end
       if (prevChampion && prevChampion !== id) {
-        // previous champion becomes defeated and moves to end
         await persistDefeat(prevChampion);
-        const prevIdx = playersOrderArr.indexOf(prevChampion); if (prevIdx !== -1) { playersOrderArr.splice(prevIdx,1); playersOrderArr.push(prevChampion); } else playersOrderArr.push(prevChampion);
+        const prevIdx = playersOrderArr.indexOf(prevChampion);
+        if (prevIdx !== -1) { playersOrderArr.splice(prevIdx,1); playersOrderArr.push(prevChampion); } else playersOrderArr.push(prevChampion);
         await savePlayersOrder();
       }
       await removeDefeat(id);
@@ -331,7 +368,10 @@ async function handleRosterClick(id) {
     if (!playersOrderArr.includes(id)) { playersOrderArr.push(id); await savePlayersOrder(); }
 
     renderChampion(); renderRoster(); renderMatchHistory();
-  } catch(err) { console.error('Error recording match', err); log('Error saving match: ' + err.message); }
+  } catch (err) {
+    console.error('Error recording match', err);
+    log('Error saving match: ' + err.message);
+  }
 }
 
 // ----- confetti -----
@@ -388,19 +428,16 @@ onValue(ref(db, 'historicalChampions'), snap => {
   const val = snap.val() || {}; const arr = val ? Object.values(val) : []; renderHistoricalChamps(arr);
 });
 
-// ----- DOM ready wiring to avoid null addEventListener errors -----
-// script tag uses defer; DOMContentLoaded handler kept for extra safety
+// ----- DOM ready wiring -----
+// script is loaded with defer; this is extra safety for wiring UI elements
 document.addEventListener('DOMContentLoaded', () => {
-  // wire add player button
   const addBtn = $('add-player-button');
   if (addBtn) addBtn.addEventListener('click', addPlayer);
 
-  // initial render now DOM is ready
   renderChampion();
   renderRoster();
   renderMatchHistory();
 
-  // connectivity test
   (async function testConn(){
     try { const root = await get(ref(db, '/')); console.log('Initial DB root', root.val()); log('Connected to Firebase'); } catch(e) { console.error('Firebase connectivity test failed', e); log('Firebase connect failed: ' + e.message); }
   })();
