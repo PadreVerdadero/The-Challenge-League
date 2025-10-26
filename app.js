@@ -105,7 +105,7 @@ async function addHistoricalChampion(champId, champName) {
 }
 
 // ----- timer helpers -----
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const WEEK_MS = 10 * 1000;
 
 async function setTimerEnd(msTimestamp) {
   try {
