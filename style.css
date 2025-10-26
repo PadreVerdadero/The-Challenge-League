@@ -28,7 +28,9 @@ button {
 
 button:hover { background: #0056b3; }
 
-.champ-name { font-size: 1.6rem; font-weight: 800; color: #d4af37; }
+.champ-name { font-size: 1.6rem; font-weight: 800; color: #d4af37; display:inline-block; vertical-align:middle; }
+
+.champion-actions { display:inline-block; margin-left:12px; vertical-align:middle; }
 
 .lost { background: #dc3545 !important; color: #fff !important; }
 
@@ -54,11 +56,6 @@ button:hover { background: #0056b3; }
 
 #historical-list div { padding:6px 4px; border-bottom:1px solid #efefef; font-size:0.95rem; }
 
-/* Modal styles */
-.modal { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.4); z-index: 2000; }
-.modal.hidden { display:none; }
-.modal-content { background: #fff; padding: 18px; border-radius: 10px; width: 90%; max-width: 520px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); }
-.modal-content h3 { margin-top: 0; }
-.modal-content label { display:block; margin-top:10px; margin-bottom:6px; font-weight:600; }
-.modal-content select, .modal-content textarea, .modal-content input { width:100%; padding:8px; border-radius:6px; border:1px solid #ddd; box-sizing:border-box; }
-.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+/* Inline champion chooser */
+.champion-chooser { display:inline-block; margin-left:8px; vertical-align:middle; }
+.champion-chooser select, .champion-chooser button { margin-left:6px; }
