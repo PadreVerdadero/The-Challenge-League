@@ -25,7 +25,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// app state mirrors DB nodes
+// State
 let players = {};
 let championId = null;
 let matches = [];
@@ -34,6 +34,32 @@ let defeated = new Set(); // local mirror of /defeats
 const $ = id => document.getElementById(id);
 function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg; console.log(msg); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Helpers to persist/remove defeat flags with logging
+async function persistDefeat(id) {
+  try {
+    await set(ref(db, `defeats/${id}`), true);
+    console.log('persistDefeat: saved defeat for', id);
+  } catch (e) {
+    console.error('persistDefeat: failed to save defeat for', id, e);
+  }
+}
+async function removeDefeat(id) {
+  try {
+    await remove(ref(db, `defeats/${id}`));
+    console.log('removeDefeat: removed defeat for', id);
+  } catch (e) {
+    console.error('removeDefeat: failed to remove defeat for', id, e);
+  }
+}
+async function clearAllDefeats() {
+  try {
+    await remove(ref(db, 'defeats'));
+    console.log('clearAllDefeats: removed /defeats node');
+  } catch (e) {
+    console.error('clearAllDefeats: failed', e);
+  }
+}
 
 // Render champion section
 function renderChampion(){
@@ -97,19 +123,21 @@ function renderRoster(){
         console.log('match written:', match);
 
         if (winnerId === id) {
-          // challenger won: mark previous champion defeated in DB, set new champion, remove defeat for new champion
+          // Challenger won: persist previous champion defeat, remove any defeat marker for new champion,
+          // set new champion, then CLEAR all defeats so UI resets only when an explicit dethrone occurs.
           const prevChampion = championId;
           if (prevChampion && prevChampion !== id) {
-            await set(ref(db, `defeats/${prevChampion}`), true);
+            await persistDefeat(prevChampion); // mark previous champion defeated
           }
-          // remove any defeat flag for new champion
-          await remove(ref(db, `defeats/${id}`));
-          await set(ref(db, 'championId'), id);
+          await removeDefeat(id); // remove any defeat mark for new champion
+          await set(ref(db, 'championId'), id); // set new champion
+          // CLEAR all defeats now that a new champion has explicitly been crowned
+          await clearAllDefeats();
           triggerConfetti();
           log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
         } else {
-          // challenger lost: persist defeat
-          await set(ref(db, `defeats/${id}`), true);
+          // Challenger lost: persist defeat for challenger only
+          await persistDefeat(id);
           log(`${p.name} lost to ${players[championId].name}`);
         }
 
@@ -170,27 +198,15 @@ onValue(ref(db, 'players'), snap => {
   renderRoster();
 });
 
-// championId — when champion changes, clear all defeats in DB so roster resets
-onValue(ref(db, 'championId'), async snap => {
+// championId — DO NOT auto-clear /defeats here. Clearing happens only when dethrone flow runs.
+onValue(ref(db, 'championId'), snap => {
   const newChampionId = snap.val();
   const prev = championId;
   championId = newChampionId;
-  console.log('champion snapshot', championId);
+  console.log('champion snapshot', { prev, newChampionId });
 
-  // If champion changed to a different id, clear the /defeats node (reset red buttons)
-  if (prev && prev !== championId) {
-    try {
-      await remove(ref(db, 'defeats'));
-      console.log('Cleared defeats due to champion change');
-    } catch (e) {
-      console.error('Failed to clear defeats on champion change', e);
-    }
-  }
-
-  // ensure current champion is not marked defeated locally
-  if (championId && defeated.has(championId)) {
-    defeated.delete(championId);
-  }
+  // safety: never mark the current champion as defeated locally
+  if (championId && defeated.has(championId)) defeated.delete(championId);
 
   renderChampion();
   renderRoster();
@@ -208,8 +224,8 @@ onValue(ref(db, 'matches'), snap => {
 onValue(ref(db, 'defeats'), snap => {
   const val = snap.val() || {};
   defeated = new Set(Object.keys(val)); // keys are player ids marked defeated
-  console.log('defeats snapshot', Array.from(defeated));
-  // always remove current champion from local defeated set (safety)
+  console.log('defeats snapshot loaded:', Array.from(defeated));
+  // safety: never mark current champion as defeated locally
   if (championId && defeated.has(championId)) defeated.delete(championId);
   renderRoster();
 });
