@@ -30,7 +30,7 @@ let championId = null;
 let matches = [];
 let defeated = new Set();
 let playersOrderArr = [];
-let timerEnd = null;
+let timerEnd = null; // mirrored from DB at /timer/endTimestamp (ms)
 let timerInterval = null;
 let processingExpiry = false;
 
@@ -38,13 +38,11 @@ const $ = id => document.getElementById(id);
 function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg; console.log(msg); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-// ----- helpers -----
-// persistDefeat now updates local defeated set immediately and re-renders
+// ----- helpers (update local defeated for immediate UI feedback) -----
 async function persistDefeat(id) {
   try {
     await set(ref(db, `defeats/${id}`), true);
-    // update local mirror immediately so UI updates without waiting for DB event
-    defeated.add(id);
+    defeated.add(id); // update local set immediately
     console.log('persistDefeat saved for', id, 'and added to local set');
     renderRoster();
   } catch (e) {
@@ -52,7 +50,6 @@ async function persistDefeat(id) {
   }
 }
 
-// removeDefeat updates local set immediately
 async function removeDefeat(id) {
   try {
     await remove(ref(db, `defeats/${id}`));
@@ -64,7 +61,6 @@ async function removeDefeat(id) {
   }
 }
 
-// clearAllDefeats updates local set immediately
 async function clearAllDefeats() {
   try {
     await remove(ref(db, 'defeats'));
@@ -108,52 +104,92 @@ async function addHistoricalChampion(champId, champName) {
   }
 }
 
-// ----- timer -----
+// ----- timer helpers -----
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-async function setTimerEnd(msTimestamp) { try { await set(ref(db, 'timer/endTimestamp'), msTimestamp); console.log('Timer end set to', msTimestamp); } catch (e) { console.error('setTimerEnd failed', e); } }
-async function startTimerOneWeek() { const end = Date.now() + WEEK_MS; await setTimerEnd(end); }
-function clearLocalInterval() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
-function startLocalCountdown() { clearLocalInterval(); updateTimerDisplay(); timerInterval = setInterval(updateTimerDisplay, 1000); }
-function formatDuration(ms) { if (ms <= 0) return '00:00:00:00'; const sec = Math.floor(ms/1000); const days = Math.floor(sec/86400); const hrs = Math.floor((sec%86400)/3600); const mins = Math.floor((sec%3600)/60); const s = sec%60; return `${String(days).padStart(2,'0')}:${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
+
+async function setTimerEnd(msTimestamp) {
+  try {
+    if (msTimestamp === null) {
+      await remove(ref(db, 'timer/endTimestamp'));
+      console.log('Timer end cleared in DB');
+    } else {
+      await set(ref(db, 'timer/endTimestamp'), msTimestamp);
+      console.log('Timer end set in DB to', msTimestamp);
+    }
+  } catch (e) {
+    console.error('setTimerEnd failed', e);
+  }
+}
+
+async function startTimerOneWeek() {
+  const end = Date.now() + WEEK_MS;
+  await setTimerEnd(end);
+}
+
+function clearLocalInterval() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+function startLocalCountdown() {
+  clearLocalInterval();
+  updateTimerDisplay();
+  timerInterval = setInterval(updateTimerDisplay, 1000);
+}
+
+function formatDuration(ms) {
+  if (ms <= 0) return '00:00:00:00';
+  const sec = Math.floor(ms / 1000);
+  const days = Math.floor(sec / 86400);
+  const hrs = Math.floor((sec % 86400) / 3600);
+  const mins = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return `${String(days).padStart(2,'0')}:${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
 function updateTimerDisplay() {
   const el = $('timer-display');
   if (!el) return;
   if (!timerEnd) { el.textContent = 'No active challenge'; el.classList.remove('expired'); return; }
   const remaining = timerEnd - Date.now();
-  if (remaining > 0) { el.textContent = `Time left: ${formatDuration(remaining)}`; el.classList.remove('expired'); }
-  else {
-    el.textContent = `Time left: 00:00:00:00 — expired`; el.classList.add('expired');
-    if (!processingExpiry) { processingExpiry = true; handleTimerExpiry().finally(()=>{ processingExpiry = false; }); }
+  if (remaining > 0) {
+    el.textContent = `Time left: ${formatDuration(remaining)}`;
+    el.classList.remove('expired');
+  } else {
+    el.textContent = `Time left: 00:00:00:00 — expired`;
+    el.classList.add('expired');
+    if (!processingExpiry) {
+      processingExpiry = true;
+      handleTimerExpiry().finally(() => { processingExpiry = false; });
+    }
   }
 }
 
-// ----- assign champion UI and logic -----
-// assignNewChampionFromUI clears defeats and sets champion
-async function assignNewChampionFromUI(newChampionId) {
-  if (!newChampionId) return;
-  // Clear all defeat flags so everyone turns blue locally and in DB
-  await clearAllDefeats();
-  // Ensure the selected champion is not marked defeated
-  await removeDefeat(newChampionId);
-  // Persist champion change
-  await set(ref(db, 'championId'), newChampionId);
-  // Restart week timer
-  await startTimerOneWeek();
-  renderChampion();
-  renderRoster();
-}
-
 // ----- expiry behaviour -----
+// When timer expires, penalize first visible roster member and move them to end.
+// If this produces a sweep (all visible defeated), record champion into historicalChampions and STOP the timer (clear DB timer).
 async function handleTimerExpiry() {
   console.log('Timer expired — processing penalty');
   const firstId = playersOrderArr.find(id => id !== championId && players[id]);
-  if (!firstId) { console.log('No eligible roster member to penalize'); return; }
+  if (!firstId) {
+    console.log('No eligible roster member to penalize');
+    // still clear timer to avoid repeated expiries
+    await setTimerEnd(null);
+    return;
+  }
 
+  // mark them defeated and move to end
   await persistDefeat(firstId);
   const idx = playersOrderArr.indexOf(firstId);
-  if (idx !== -1) { playersOrderArr.splice(idx,1); playersOrderArr.push(firstId); await savePlayersOrder(); }
-  else { playersOrderArr.push(firstId); await savePlayersOrder(); }
+  if (idx !== -1) {
+    playersOrderArr.splice(idx, 1);
+    playersOrderArr.push(firstId);
+    await savePlayersOrder();
+  } else {
+    playersOrderArr.push(firstId);
+    await savePlayersOrder();
+  }
 
+  // write synthetic match for history with description
   const match = {
     challengerId: firstId,
     challengerName: players[firstId]?.name || 'Unknown',
@@ -165,16 +201,27 @@ async function handleTimerExpiry() {
     timestamp: Date.now()
   };
   await writeMatch(match);
-  renderRoster();
 
+  renderRoster();
+  renderMatchHistory();
+
+  // Check sweep: are all visible (non-champion) players defeated?
   const visibleIds = playersOrderArr.filter(id => id !== championId && players[id]);
   const allDefeated = visibleIds.length > 0 && visibleIds.every(id => defeated.has(id));
+
   if (allDefeated) {
     const champName = players[championId]?.name || 'Champion';
-    alert(`Congratulations ${champName}! All challengers are defeated.`);
+    // Add champion to history with date
     await addHistoricalChampion(championId, champName);
-    // instruct user to use assign control to pick next champion
+    alert(`Congratulations ${champName}! All challengers are defeated.`);
+
+    // STOP the timer until a human assigns the next champion
+    await setTimerEnd(null); // clears DB timer; timerEnd listener will stop local countdown
+
+    // Inform user to use the Assign Champion control (UI shows button next to champion)
+    log('Timer stopped: all challengers defeated. Use Assign Champion to pick the next champion.');
   } else {
+    // restart timer for the next week automatically
     await startTimerOneWeek();
   }
 }
@@ -261,6 +308,22 @@ function openChampionChooser(parent) {
   parent.appendChild(chooser);
 }
 
+// assignNewChampionFromUI clears defeats and sets champion, and restarts the timer
+async function assignNewChampionFromUI(newChampionId) {
+  if (!newChampionId) return;
+  // Clear all defeat flags so everyone turns blue locally and in DB
+  await clearAllDefeats();
+  // Ensure the selected champion is not marked defeated
+  await removeDefeat(newChampionId);
+  // Persist champion change
+  await set(ref(db, 'championId'), newChampionId);
+  // Restart the week timer when champion assigned
+  await startTimerOneWeek();
+  renderChampion();
+  renderRoster();
+}
+
+// Render roster
 function renderRoster() {
   const roster = $('roster');
   if (!roster) return;
@@ -294,18 +357,27 @@ function renderRoster() {
   });
 }
 
+// Render match history: includes challenge descriptions
 function renderMatchHistory() {
   const list = $('match-list');
   if (!list) return;
   list.innerHTML = '';
+  // preserve order newest first
   matches.slice().reverse().forEach(m => {
     const time = new Date(m.timestamp).toLocaleString();
     const div = document.createElement('div');
-    div.textContent = `🏁 ${m.challengerName} vs ${m.championName} — Winner: ${m.winnerName} (${time})`;
+    div.innerHTML = `🏁 <strong>${escapeHtml(m.challengerName)}</strong> vs <strong>${escapeHtml(m.championName)}</strong> — Winner: <strong>${escapeHtml(m.winnerName)}</strong> (${time})`;
     list.appendChild(div);
+    if (m.description) {
+      const desc = document.createElement('div');
+      desc.className = 'match-desc';
+      desc.textContent = m.description;
+      list.appendChild(desc);
+    }
   });
 }
 
+// Render historical champions list
 function renderHistoricalChamps(arr) {
   const el = $('historical-list');
   if (!el) return;
@@ -321,11 +393,15 @@ function renderHistoricalChamps(arr) {
 // ----- challenge flow -----
 async function handleRosterClick(id) {
   const p = players[id]; if (!p) return;
+
+  // restart timer when challenge begins (user intent)
   await startTimerOneWeek();
 
   if (!championId) {
     if (confirm(`${p.name} selected. Make them champion?`)) {
-      await set(ref(db, 'championId'), id); log(`Champion set to ${p.name}`); renderChampion();
+      await set(ref(db, 'championId'), id);
+      log(`Champion set to ${p.name}`);
+      renderChampion();
     }
     return;
   }
@@ -337,27 +413,43 @@ async function handleRosterClick(id) {
 
   const winnerId = (winnerName === p.name) ? id : championId;
   const winnerDisplay = (winnerName === p.name) ? p.name : players[championId].name;
-  const match = { challengerId: id, challengerName: p.name, championId, championName: players[championId].name, winnerId, winnerName: winnerDisplay, description: desc, timestamp: Date.now() };
+
+  const match = {
+    challengerId: id,
+    challengerName: p.name,
+    championId,
+    championName: players[championId].name,
+    winnerId,
+    winnerName: winnerDisplay,
+    description: desc || '',
+    timestamp: Date.now()
+  };
 
   try {
     await writeMatch(match);
+    // push match locally will be handled by DB listener, but update local matches for immediate UI
+    matches.push(match);
 
     if (winnerId === id) {
+      // Challenger won: dethrone previous champion
       const prevChampion = championId;
-      // Reset defeats locally & in DB
+      // Clear all defeats (everyone turns blue) locally and in DB
       await clearAllDefeats();
-      // Previous champion becomes defeated and moves to end
+      // Previous champion becomes defeated and moves to end if different
       if (prevChampion && prevChampion !== id) {
         await persistDefeat(prevChampion);
         const prevIdx = playersOrderArr.indexOf(prevChampion);
-        if (prevIdx !== -1) { playersOrderArr.splice(prevIdx,1); playersOrderArr.push(prevChampion); } else playersOrderArr.push(prevChampion);
+        if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); playersOrderArr.push(prevChampion); } else playersOrderArr.push(prevChampion);
         await savePlayersOrder();
       }
+      // Ensure new champion not defeated
       await removeDefeat(id);
+      // Set new champion
       await set(ref(db, 'championId'), id);
       triggerConfetti();
       log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
     } else {
+      // Challenger lost: persist defeat and move them to bottom
       await persistDefeat(id);
       const idx = playersOrderArr.indexOf(id);
       if (idx !== -1) { playersOrderArr.splice(idx,1); playersOrderArr.push(id); } else playersOrderArr.push(id);
@@ -367,7 +459,9 @@ async function handleRosterClick(id) {
 
     if (!playersOrderArr.includes(id)) { playersOrderArr.push(id); await savePlayersOrder(); }
 
-    renderChampion(); renderRoster(); renderMatchHistory();
+    renderChampion();
+    renderRoster();
+    renderMatchHistory();
   } catch (err) {
     console.error('Error recording match', err);
     log('Error saving match: ' + err.message);
@@ -375,70 +469,137 @@ async function handleRosterClick(id) {
 }
 
 // ----- confetti -----
-function triggerConfetti() { const canvas = $('confetti-canvas'); if (!canvas) return; const ctx = canvas.getContext('2d'); canvas.width = innerWidth; canvas.height = innerHeight; const parts=[]; const colors=['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93']; for(let i=0;i<100;i++) parts.push({x:Math.random()*canvas.width,y:-50,vx:(Math.random()-0.5)*6,vy:2+Math.random()*5,size:6+Math.random()*8,c:colors[Math.floor(Math.random()*colors.length)]}); let f=0; function d(){ f++; ctx.clearRect(0,0,canvas.width,canvas.height); parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.06;ctx.fillStyle=p.c;ctx.fillRect(p.x,p.y,p.size,p.size*0.6)}); if(f<140) requestAnimationFrame(d); else ctx.clearRect(0,0,canvas.width,canvas.height);} d(); }
+function triggerConfetti() {
+  const canvas = $('confetti-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const parts = [];
+  const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'];
+  for (let i=0;i<100;i++){
+    parts.push({ x: Math.random()*canvas.width, y: -50 - Math.random()*100, vx: (Math.random()-0.5)*6, vy: 2 + Math.random()*5, size: 6 + Math.random()*8, c: colors[Math.floor(Math.random()*colors.length)] });
+  }
+  let frame = 0;
+  function draw() {
+    frame++;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    parts.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.06;
+      ctx.fillStyle = p.c;
+      ctx.fillRect(p.x, p.y, p.size, p.size*0.6);
+    });
+    if (frame < 140) requestAnimationFrame(draw);
+    else ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  draw();
+}
 
 // ----- add player -----
 async function addPlayer() {
-  const input = $('new-player-name'); if (!input) return;
-  const name = input.value.trim(); if (!name) { log('Enter a name'); return; }
+  const input = $('new-player-name');
+  if (!input) return;
+  const name = input.value.trim();
+  if (!name) { log('Enter a name'); return; }
   const id = name.toLowerCase().replace(/\s+/g,'-');
-  try { await set(ref(db, `players/${id}`), { name }); input.value=''; if (!playersOrderArr.includes(id)) { playersOrderArr.push(id); await savePlayersOrder(); } log(`Added ${name}`); }
-  catch(err) { console.error('Add player failed', err); log('Add player failed: ' + err.message); }
+  try {
+    await set(ref(db, `players/${id}`), { name });
+    input.value = '';
+    if (!playersOrderArr.includes(id)) { playersOrderArr.push(id); await savePlayersOrder(); }
+    log(`Added ${name}`);
+  } catch (err) {
+    console.error('Add player failed', err);
+    log('Add player failed: ' + err.message);
+  }
 }
+$('add-player-button')?.addEventListener('click', addPlayer);
 
 // ----- Firebase listeners -----
+
+// players
 onValue(ref(db, 'players'), snap => {
   players = snap.val() || {};
   console.log('players snapshot', players);
+  // ensure order includes any new players
   const allIds = Object.keys(players);
   allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
   playersOrderArr = playersOrderArr.filter(pid => allIds.includes(pid));
   renderRoster();
 });
 
+// playersOrder
 onValue(ref(db, 'playersOrder'), snap => {
   const val = snap.val();
-  if (!val) { playersOrderArr = []; console.log('playersOrder empty in DB'); }
-  else { playersOrderArr = Object.entries(val).map(([k,id])=>({idx:Number(k),id})).sort((a,b)=>a.idx-b.idx).map(e=>e.id); console.log('playersOrder loaded', playersOrderArr); }
+  if (!val) {
+    playersOrderArr = [];
+    console.log('playersOrder empty in DB');
+  } else {
+    playersOrderArr = Object.entries(val)
+      .map(([k, id]) => ({ idx: Number(k), id }))
+      .sort((a, b) => a.idx - b.idx)
+      .map(e => e.id);
+    console.log('playersOrder loaded', playersOrderArr);
+  }
+  // append missing players
   const allIds = Object.keys(players || {});
   allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
   playersOrderArr = playersOrderArr.filter(pid => allIds.includes(pid));
   renderRoster();
 });
 
+// championId
 onValue(ref(db, 'championId'), snap => {
-  const newChampionId = snap.val(); const prev = championId; championId = newChampionId; console.log('champion snapshot', { prev, newChampionId });
+  const newChampionId = snap.val();
+  const prev = championId;
+  championId = newChampionId;
+  console.log('champion snapshot', { prev, newChampionId });
   if (championId && defeated.has(championId)) defeated.delete(championId);
-  renderChampion(); renderRoster();
-});
-
-onValue(ref(db, 'matches'), snap => {
-  const val = snap.val(); matches = val ? Object.values(val) : []; console.log('matches snapshot count', matches.length); renderMatchHistory();
-});
-
-onValue(ref(db, 'defeats'), snap => {
-  const val = snap.val() || {}; defeated = new Set(Object.keys(val)); console.log('defeats snapshot loaded', Array.from(defeated)); if (championId && defeated.has(championId)) defeated.delete(championId); renderRoster();
-});
-
-onValue(ref(db, 'timer/endTimestamp'), snap => {
-  const val = snap.val(); timerEnd = val || null; console.log('timer/endTimestamp', timerEnd); if (timerEnd) startLocalCountdown(); else { clearLocalInterval(); updateTimerDisplay(); }
-});
-
-onValue(ref(db, 'historicalChampions'), snap => {
-  const val = snap.val() || {}; const arr = val ? Object.values(val) : []; renderHistoricalChamps(arr);
-});
-
-// ----- DOM ready wiring -----
-// script is loaded with defer; this is extra safety for wiring UI elements
-document.addEventListener('DOMContentLoaded', () => {
-  const addBtn = $('add-player-button');
-  if (addBtn) addBtn.addEventListener('click', addPlayer);
-
   renderChampion();
   renderRoster();
-  renderMatchHistory();
-
-  (async function testConn(){
-    try { const root = await get(ref(db, '/')); console.log('Initial DB root', root.val()); log('Connected to Firebase'); } catch(e) { console.error('Firebase connectivity test failed', e); log('Firebase connect failed: ' + e.message); }
-  })();
 });
+
+// matches (include descriptions)
+onValue(ref(db, 'matches'), snap => {
+  const val = snap.val();
+  matches = val ? Object.values(val) : [];
+  console.log('matches snapshot count', matches.length);
+  renderMatchHistory();
+});
+
+// defeats
+onValue(ref(db, 'defeats'), snap => {
+  const val = snap.val() || {};
+  defeated = new Set(Object.keys(val));
+  console.log('defeats snapshot loaded', Array.from(defeated));
+  if (championId && defeated.has(championId)) defeated.delete(championId);
+  renderRoster();
+});
+
+// timer/endTimestamp
+onValue(ref(db, 'timer/endTimestamp'), snap => {
+  const val = snap.val();
+  timerEnd = val || null;
+  console.log('timer/endTimestamp', timerEnd);
+  if (timerEnd) startLocalCountdown(); else { clearLocalInterval(); updateTimerDisplay(); }
+});
+
+// historicalChampions
+onValue(ref(db, 'historicalChampions'), snap => {
+  const val = snap.val() || {};
+  const arr = val ? Object.values(val) : [];
+  renderHistoricalChamps(arr);
+});
+
+// Connectivity check (initial)
+(async function testConn(){
+  try {
+    const root = await get(ref(db, '/'));
+    console.log('Initial DB root', root.val());
+    log('Connected to Firebase');
+  } catch (e) {
+    console.error('Firebase connectivity test failed', e);
+    log('Firebase connect failed: ' + e.message);
+  }
+})();
