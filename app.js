@@ -77,6 +77,7 @@ function startLocalCountdown() { clearLocalInterval(); updateTimerDisplay(); tim
 function formatDuration(ms) { if (ms <= 0) return '00:00:00:00'; const sec = Math.floor(ms/1000); const days = Math.floor(sec/86400); const hrs = Math.floor((sec%86400)/3600); const mins = Math.floor((sec%3600)/60); const s = sec%60; return `${String(days).padStart(2,'0')}:${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 function updateTimerDisplay() {
   const el = $('timer-display');
+  if (!el) return; // guard if DOM not ready
   if (!timerEnd) { el.textContent = 'No active challenge'; el.classList.remove('expired'); return; }
   const remaining = timerEnd - Date.now();
   if (remaining > 0) { el.textContent = `Time left: ${formatDuration(remaining)}`; el.classList.remove('expired'); }
@@ -90,19 +91,11 @@ function updateTimerDisplay() {
 // assignNewChampionFromUI now clears all defeats and sets new champion
 async function assignNewChampionFromUI(newChampionId) {
   if (!newChampionId) return;
-
-  // Clear all defeat flags so everyone turns blue
-  await clearAllDefeats();
-
-  // Ensure the selected champion is not marked defeated
-  await removeDefeat(newChampionId);
-
-  // Persist champion change
+  await clearAllDefeats();             // clear all defeat flags
+  await removeDefeat(newChampionId);   // ensure selected champion is not defeated
   await set(ref(db, 'championId'), newChampionId);
-
-  // Restart the week timer when champion assigned
   await startTimerOneWeek();
-
+  // render calls might run before DOM ready; guard inside render functions
   renderChampion();
   renderRoster();
 }
@@ -137,7 +130,7 @@ async function handleTimerExpiry() {
     const champName = players[championId]?.name || 'Champion';
     alert(`Congratulations ${champName}! All challengers are defeated.`);
     await addHistoricalChampion(championId, champName);
-    // Inform user to use the Assign Champion control next to the champion to pick a new champion.
+    // user should use Assign Champion control to set next champion
   } else {
     await startTimerOneWeek();
   }
@@ -145,8 +138,9 @@ async function handleTimerExpiry() {
 
 // ----- rendering -----
 function renderChampion() {
-  const champ = players[championId];
   const el = $('champion-card');
+  if (!el) return;
+  const champ = players[championId];
   el.innerHTML = `
     <h2>Champion</h2>
     <div>
@@ -159,6 +153,7 @@ function renderChampion() {
 
 function renderChampionActions() {
   const area = $('champion-actions-area');
+  if (!area) return;
   area.innerHTML = '';
   const btn = document.createElement('button');
   btn.textContent = championId ? 'Assign Champion' : 'Pick First Champion';
@@ -167,6 +162,8 @@ function renderChampionActions() {
 }
 
 function openChampionChooser(parent) {
+  // defensive: ensure parent exists
+  if (!parent) return;
   const existing = parent.querySelector('.champion-chooser');
   if (existing) { parent.removeChild(existing); return; }
 
@@ -224,6 +221,7 @@ function openChampionChooser(parent) {
 
 function renderRoster() {
   const roster = $('roster');
+  if (!roster) return;
   roster.innerHTML = '<h2>Roster</h2>';
   if (!players || Object.keys(players).length === 0) { roster.innerHTML += '<p>No players yet</p>'; return; }
 
@@ -255,11 +253,28 @@ function renderRoster() {
 }
 
 function renderMatchHistory() {
-  const list = $('match-list'); list.innerHTML = '';
-  matches.slice().reverse().forEach(m => { const time = new Date(m.timestamp).toLocaleString(); const div = document.createElement('div'); div.textContent = `🏁 ${m.challengerName} vs ${m.championName} — Winner: ${m.winnerName} (${time})`; list.appendChild(div); });
+  const list = $('match-list');
+  if (!list) return;
+  list.innerHTML = '';
+  matches.slice().reverse().forEach(m => {
+    const time = new Date(m.timestamp).toLocaleString();
+    const div = document.createElement('div');
+    div.textContent = `🏁 ${m.challengerName} vs ${m.championName} — Winner: ${m.winnerName} (${time})`;
+    list.appendChild(div);
+  });
 }
 
-function renderHistoricalChamps(arr) { const el = $('historical-list'); el.innerHTML = ''; arr.forEach(entry => { const d = new Date(entry.timestamp).toLocaleString(); const div = document.createElement('div'); div.textContent = `${entry.name} — ${d}`; el.appendChild(div); }); }
+function renderHistoricalChamps(arr) {
+  const el = $('historical-list');
+  if (!el) return;
+  el.innerHTML = '';
+  arr.forEach(entry => {
+    const d = new Date(entry.timestamp).toLocaleString();
+    const div = document.createElement('div');
+    div.textContent = `${entry.name} — ${d}`;
+    el.appendChild(div);
+  });
+}
 
 // ----- challenge flow -----
 async function handleRosterClick(id) {
@@ -317,12 +332,12 @@ function triggerConfetti() { const canvas = $('confetti-canvas'); if (!canvas) r
 
 // ----- add player -----
 async function addPlayer() {
-  const input = $('new-player-name'); const name = input.value.trim(); if (!name) { log('Enter a name'); return; }
+  const input = $('new-player-name'); if (!input) return;
+  const name = input.value.trim(); if (!name) { log('Enter a name'); return; }
   const id = name.toLowerCase().replace(/\s+/g,'-');
   try { await set(ref(db, `players/${id}`), { name }); input.value=''; if (!playersOrderArr.includes(id)) { playersOrderArr.push(id); await savePlayersOrder(); } log(`Added ${name}`); }
   catch(err) { console.error('Add player failed', err); log('Add player failed: ' + err.message); }
 }
-$('add-player-button').addEventListener('click', addPlayer);
 
 // ----- Firebase listeners -----
 onValue(ref(db, 'players'), snap => {
@@ -366,7 +381,20 @@ onValue(ref(db, 'historicalChampions'), snap => {
   const val = snap.val() || {}; const arr = val ? Object.values(val) : []; renderHistoricalChamps(arr);
 });
 
-// Connectivity test
-(async function testConn(){
-  try { const root = await get(ref(db, '/')); console.log('Initial DB root', root.val()); log('Connected to Firebase'); } catch(e) { console.error('Firebase connectivity test failed', e); log('Firebase connect failed: ' + e.message); }
-})();
+// ----- DOM ready wiring to avoid null addEventListener errors -----
+document.addEventListener('DOMContentLoaded', () => {
+  // wire add player button
+  const addBtn = $('add-player-button');
+  if (addBtn) addBtn.addEventListener('click', addPlayer);
+
+  // render initial UI pieces now DOM is ready
+  renderChampion();
+  renderRoster();
+  renderMatchHistory();
+  renderHistoricalChamps([]);
+
+  // connectivity test (safe to show logs)
+  (async function testConn(){
+    try { const root = await get(ref(db, '/')); console.log('Initial DB root', root.val()); log('Connected to Firebase'); } catch(e) { console.error('Firebase connectivity test failed', e); log('Firebase connect failed: ' + e.message); }
+  })();
+});
