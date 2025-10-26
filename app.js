@@ -60,9 +60,8 @@ async function savePlayersOrder() {
   } catch(e){ console.error('savePlayersOrder failed', e); }
 }
 async function writeMatch(match) {
-  try {
-    const mRef = push(ref(db, 'matches')); await set(mRef, match); console.log('match written', match);
-  } catch(e){ console.error('writeMatch failed', e); }
+  try { const mRef = push(ref(db, 'matches')); await set(mRef, match); console.log('match written', match); }
+  catch(e){ console.error('writeMatch failed', e); }
 }
 async function addHistoricalChampion(champId, champName) {
   try { const entry = { id: champId, name: champName, timestamp: Date.now() }; const hRef = push(ref(db, 'historicalChampions')); await set(hRef, entry); console.log('Added historical champion', entry); }
@@ -87,54 +86,26 @@ function updateTimerDisplay() {
   }
 }
 
-// ----- modal handling -----
-const modal = $('new-champion-modal');
-const modalChampionSelect = $('modal-champion-select');
-const modalOrderText = $('modal-order-text');
-const modalSubmit = $('modal-submit');
-const modalCancel = $('modal-cancel');
+// ----- assign champion UI and logic -----
+// assignNewChampionFromUI now clears all defeats and sets new champion
+async function assignNewChampionFromUI(newChampionId) {
+  if (!newChampionId) return;
 
-function openNewChampionModal() {
-  // populate select with player names
-  modalChampionSelect.innerHTML = '';
-  Object.entries(players).forEach(([id,p]) => {
-    const opt = document.createElement('option'); opt.value = id; opt.textContent = p.name;
-    modalChampionSelect.appendChild(opt);
-  });
-  // prefill textarea with current order (names except chosen default will be replaced)
-  const visible = playersOrderArr.filter(id => id !== modalChampionSelect.value && players[id]);
-  modalOrderText.value = visible.map(id => players[id]?.name || '').join(', ');
-  modal.classList.remove('hidden');
-}
-function closeNewChampionModal() { modal.classList.add('hidden'); }
-
-// Modal submit handler
-modalSubmit.addEventListener('click', async () => {
-  const newChampionId = modalChampionSelect.value;
-  const orderText = modalOrderText.value || '';
-  const names = orderText.split(',').map(s => s.trim()).filter(Boolean);
-  // Map names to ids in the order given
-  const nameToId = Object.fromEntries(Object.entries(players).map(([id,p])=>[p.name, id]));
-  const newOrderIds = [];
-  names.forEach(n => { if (nameToId[n] && nameToId[n] !== newChampionId) newOrderIds.push(nameToId[n]); });
-  // Append any remaining players not in list (excluding new champion)
-  Object.keys(players).forEach(id => { if (id !== newChampionId && !newOrderIds.includes(id)) newOrderIds.push(id); });
-
-  // Persist new order and champion, clear defeats except keep dethroned player (handled earlier)
-  playersOrderArr = newOrderIds;
-  await savePlayersOrder();
-  // clear defeats entirely then remove defeat for new champion
+  // Clear all defeat flags so everyone turns blue
   await clearAllDefeats();
+
+  // Ensure the selected champion is not marked defeated
   await removeDefeat(newChampionId);
+
+  // Persist champion change
   await set(ref(db, 'championId'), newChampionId);
 
-  closeNewChampionModal();
-});
+  // Restart the week timer when champion assigned
+  await startTimerOneWeek();
 
-// Modal cancel
-modalCancel.addEventListener('click', () => {
-  closeNewChampionModal();
-});
+  renderChampion();
+  renderRoster();
+}
 
 // ----- expiry behaviour -----
 async function handleTimerExpiry() {
@@ -142,13 +113,11 @@ async function handleTimerExpiry() {
   const firstId = playersOrderArr.find(id => id !== championId && players[id]);
   if (!firstId) { console.log('No eligible roster member to penalize'); return; }
 
-  // Mark them defeated and move to end
   await persistDefeat(firstId);
   const idx = playersOrderArr.indexOf(firstId);
   if (idx !== -1) { playersOrderArr.splice(idx,1); playersOrderArr.push(firstId); await savePlayersOrder(); }
   else { playersOrderArr.push(firstId); await savePlayersOrder(); }
 
-  // Record synthetic match
   const match = {
     challengerId: firstId,
     challengerName: players[firstId]?.name || 'Unknown',
@@ -160,23 +129,16 @@ async function handleTimerExpiry() {
     timestamp: Date.now()
   };
   await writeMatch(match);
-
   renderRoster();
 
-  // Check sweep
   const visibleIds = playersOrderArr.filter(id => id !== championId && players[id]);
   const allDefeated = visibleIds.length > 0 && visibleIds.every(id => defeated.has(id));
   if (allDefeated) {
-    // Congratulate champion and add historical record
     const champName = players[championId]?.name || 'Champion';
     alert(`Congratulations ${champName}! All challengers are defeated.`);
     await addHistoricalChampion(championId, champName);
-
-    // Open modal to assign new champion and order instead of prompts
-    openNewChampionModal();
-    // restart timer will be handled when new champion is set via modal
+    // Inform user to use the Assign Champion control next to the champion to pick a new champion.
   } else {
-    // Restart timer automatically for next week
     await startTimerOneWeek();
   }
 }
@@ -184,9 +146,80 @@ async function handleTimerExpiry() {
 // ----- rendering -----
 function renderChampion() {
   const champ = players[championId];
-  $('champion-card').innerHTML = champ
-    ? `<h2>Champion</h2><div class="champ-name">👑 ${escapeHtml(champ.name)}</div>`
-    : `<h2>Champion</h2><div>No champion yet</div>`;
+  const el = $('champion-card');
+  el.innerHTML = `
+    <h2>Champion</h2>
+    <div>
+      ${champ ? `<span class="champ-name">👑 ${escapeHtml(champ.name)}</span>` : `<span class="champ-name">No champion yet</span>`}
+      <span class="champion-actions" id="champion-actions-area"></span>
+    </div>
+  `;
+  renderChampionActions();
+}
+
+function renderChampionActions() {
+  const area = $('champion-actions-area');
+  area.innerHTML = '';
+  const btn = document.createElement('button');
+  btn.textContent = championId ? 'Assign Champion' : 'Pick First Champion';
+  btn.addEventListener('click', () => openChampionChooser(area));
+  area.appendChild(btn);
+}
+
+function openChampionChooser(parent) {
+  const existing = parent.querySelector('.champion-chooser');
+  if (existing) { parent.removeChild(existing); return; }
+
+  const chooser = document.createElement('span');
+  chooser.className = 'champion-chooser';
+
+  const select = document.createElement('select');
+
+  const keepOpt = document.createElement('option');
+  keepOpt.value = 'keep';
+  keepOpt.textContent = 'Keep current champion';
+  select.appendChild(keepOpt);
+
+  if (!championId) {
+    const pickFirst = document.createElement('option');
+    pickFirst.value = 'pick-first';
+    pickFirst.textContent = 'Select first player as champion';
+    select.appendChild(pickFirst);
+  }
+
+  const ordered = playersOrderArr.length ? playersOrderArr : Object.keys(players).sort();
+  ordered.forEach(id => {
+    if (!players[id]) return;
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = players[id].name;
+    select.appendChild(opt);
+  });
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save';
+  saveBtn.addEventListener('click', async () => {
+    const val = select.value;
+    if (val === 'keep') { parent.removeChild(chooser); return; }
+    let newChampionId = null;
+    if (val === 'pick-first') {
+      newChampionId = (ordered.find(id => id && players[id])) || null;
+      if (!newChampionId) { alert('No players to select as champion'); parent.removeChild(chooser); return; }
+    } else {
+      newChampionId = val;
+    }
+    await assignNewChampionFromUI(newChampionId);
+    parent.removeChild(chooser);
+  });
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', () => { if (parent.contains(chooser)) parent.removeChild(chooser); });
+
+  chooser.appendChild(select);
+  chooser.appendChild(saveBtn);
+  chooser.appendChild(cancelBtn);
+  parent.appendChild(chooser);
 }
 
 function renderRoster() {
@@ -226,15 +259,11 @@ function renderMatchHistory() {
   matches.slice().reverse().forEach(m => { const time = new Date(m.timestamp).toLocaleString(); const div = document.createElement('div'); div.textContent = `🏁 ${m.challengerName} vs ${m.championName} — Winner: ${m.winnerName} (${time})`; list.appendChild(div); });
 }
 
-function renderHistoricalChamps(arr) {
-  const el = $('historical-list'); el.innerHTML = '';
-  arr.forEach(entry => { const d = new Date(entry.timestamp).toLocaleString(); const div = document.createElement('div'); div.textContent = `${entry.name} — ${d}`; el.appendChild(div); });
-}
+function renderHistoricalChamps(arr) { const el = $('historical-list'); el.innerHTML = ''; arr.forEach(entry => { const d = new Date(entry.timestamp).toLocaleString(); const div = document.createElement('div'); div.textContent = `${entry.name} — ${d}`; el.appendChild(div); }); }
 
 // ----- challenge flow -----
 async function handleRosterClick(id) {
   const p = players[id]; if (!p) return;
-  // restart timer each time a challenge begins
   await startTimerOneWeek();
 
   if (!championId) {
@@ -257,38 +286,26 @@ async function handleRosterClick(id) {
     await writeMatch(match);
 
     if (winnerId === id) {
-      // Challenger won: dethrone previous champion
       const prevChampion = championId;
-      // CLEAR all defeats first (everyone turns blue)
-      await clearAllDefeats();
-      // persist defeat for previous champion only (old champion becomes red)
+      await clearAllDefeats(); // reset all defeats (everyone blue)
       if (prevChampion && prevChampion !== id) {
+        // previous champion becomes defeated and moves to end
         await persistDefeat(prevChampion);
-      }
-      // move previous champion to end of order
-      if (prevChampion) {
-        const prevIdx = playersOrderArr.indexOf(prevChampion);
-        if (prevIdx !== -1) { playersOrderArr.splice(prevIdx,1); playersOrderArr.push(prevChampion); }
-        else playersOrderArr.push(prevChampion);
+        const prevIdx = playersOrderArr.indexOf(prevChampion); if (prevIdx !== -1) { playersOrderArr.splice(prevIdx,1); playersOrderArr.push(prevChampion); } else playersOrderArr.push(prevChampion);
         await savePlayersOrder();
       }
-      // remove defeat flag for the new champion
       await removeDefeat(id);
-      // set new champion
       await set(ref(db, 'championId'), id);
       triggerConfetti();
       log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
     } else {
-      // Challenger lost: persist defeat and move them to bottom
       await persistDefeat(id);
       const idx = playersOrderArr.indexOf(id);
-      if (idx !== -1) { playersOrderArr.splice(idx,1); playersOrderArr.push(id); }
-      else playersOrderArr.push(id);
+      if (idx !== -1) { playersOrderArr.splice(idx,1); playersOrderArr.push(id); } else playersOrderArr.push(id);
       await savePlayersOrder();
       log(`${p.name} lost to ${players[championId].name}`);
     }
 
-    // ensure id present in order
     if (!playersOrderArr.includes(id)) { playersOrderArr.push(id); await savePlayersOrder(); }
 
     renderChampion(); renderRoster(); renderMatchHistory();
@@ -296,18 +313,14 @@ async function handleRosterClick(id) {
 }
 
 // ----- confetti -----
-function triggerConfetti() { const canvas = $('confetti-canvas'); if (!canvas) return; const ctx = canvas.getContext('2d'); canvas.width = innerWidth; canvas.height = innerHeight; const parts = []; const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93']; for (let i=0;i<100;i++) parts.push({x:Math.random()*canvas.width,y:-50,vx:(Math.random()-0.5)*6,vy:2+Math.random()*5,size:6+Math.random()*8,c:colors[Math.floor(Math.random()*colors.length)]}); let f=0; function d(){ f++; ctx.clearRect(0,0,canvas.width,canvas.height); parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.06;ctx.fillStyle=p.c;ctx.fillRect(p.x,p.y,p.size,p.size*0.6)}); if (f<140) requestAnimationFrame(d); else ctx.clearRect(0,0,canvas.width,canvas.height);} d(); }
+function triggerConfetti() { const canvas = $('confetti-canvas'); if (!canvas) return; const ctx = canvas.getContext('2d'); canvas.width = innerWidth; canvas.height = innerHeight; const parts=[]; const colors=['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93']; for(let i=0;i<100;i++) parts.push({x:Math.random()*canvas.width,y:-50,vx:(Math.random()-0.5)*6,vy:2+Math.random()*5,size:6+Math.random()*8,c:colors[Math.floor(Math.random()*colors.length)]}); let f=0; function d(){ f++; ctx.clearRect(0,0,canvas.width,canvas.height); parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.06;ctx.fillStyle=p.c;ctx.fillRect(p.x,p.y,p.size,p.size*0.6)}); if(f<140) requestAnimationFrame(d); else ctx.clearRect(0,0,canvas.width,canvas.height);} d(); }
 
 // ----- add player -----
 async function addPlayer() {
   const input = $('new-player-name'); const name = input.value.trim(); if (!name) { log('Enter a name'); return; }
   const id = name.toLowerCase().replace(/\s+/g,'-');
-  try {
-    await set(ref(db, `players/${id}`), { name });
-    input.value = '';
-    if (!playersOrderArr.includes(id)) { playersOrderArr.push(id); await savePlayersOrder(); }
-    log(`Added ${name}`);
-  } catch (err) { console.error('Add player failed', err); log('Add player failed: ' + err.message); }
+  try { await set(ref(db, `players/${id}`), { name }); input.value=''; if (!playersOrderArr.includes(id)) { playersOrderArr.push(id); await savePlayersOrder(); } log(`Added ${name}`); }
+  catch(err) { console.error('Add player failed', err); log('Add player failed: ' + err.message); }
 }
 $('add-player-button').addEventListener('click', addPlayer);
 
@@ -315,7 +328,6 @@ $('add-player-button').addEventListener('click', addPlayer);
 onValue(ref(db, 'players'), snap => {
   players = snap.val() || {};
   console.log('players snapshot', players);
-  // ensure order includes new players
   const allIds = Object.keys(players);
   allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
   playersOrderArr = playersOrderArr.filter(pid => allIds.includes(pid));
@@ -354,7 +366,7 @@ onValue(ref(db, 'historicalChampions'), snap => {
   const val = snap.val() || {}; const arr = val ? Object.values(val) : []; renderHistoricalChamps(arr);
 });
 
-// connectivity test
+// Connectivity test
 (async function testConn(){
   try { const root = await get(ref(db, '/')); console.log('Initial DB root', root.val()); log('Connected to Firebase'); } catch(e) { console.error('Firebase connectivity test failed', e); log('Firebase connect failed: ' + e.message); }
 })();
