@@ -48,6 +48,9 @@ async function persistDefeat(id) {
     await set(ref(db, `defeats/${id}`), true);
     defeated.add(id);
     renderRoster();
+    // Immediately check for sweep after marking defeat
+    checkForSweep('persistDefeat:' + id);
+    console.log('persistDefeat saved for', id, 'and added to local set');
   } catch (e) {
     console.error('persistDefeat failed for', id, e);
   }
@@ -58,6 +61,9 @@ async function removeDefeat(id) {
     await remove(ref(db, `defeats/${id}`));
     defeated.delete(id);
     renderRoster();
+    // Removing a defeat cannot create a sweep, but keep consistent check
+    checkForSweep('removeDefeat:' + id);
+    console.log('removeDefeat removed for', id, 'and removed from local set');
   } catch (e) {
     console.error('removeDefeat failed for', id, e);
   }
@@ -68,6 +74,9 @@ async function clearAllDefeats() {
     await remove(ref(db, 'defeats'));
     defeated = new Set();
     renderRoster();
+    // Check (should be false) but keeps state consistent
+    checkForSweep('clearAllDefeats');
+    console.log('clearAllDefeats removed /defeats and cleared local set');
   } catch (e) {
     console.error('clearAllDefeats failed', e);
   }
@@ -89,6 +98,31 @@ async function writeMatch(match) {
     await set(mRef, match);
   } catch (e) {
     console.error('writeMatch failed', e);
+  }
+}
+
+// ----- sweep checker (centralized) -----
+async function checkForSweep(triggerContext = 'unknown') {
+  try {
+    const visibleIds = playersOrderArr.filter(id => id !== championId && players[id]);
+    console.log('[checkForSweep] triggered by:', triggerContext);
+    console.log('[checkForSweep] visibleIds:', visibleIds);
+    console.log('[checkForSweep] defeated set:', Array.from(defeated));
+    const allDefeated = visibleIds.length > 0 && visibleIds.every(id => defeated.has(id));
+    if (allDefeated) {
+      console.log('[checkForSweep] sweep detected for championId:', championId);
+      // Stop timer on DB and locally
+      await setTimerEnd(null);
+      isPendingState = true;
+      // Play the explosion animation if not already playing
+      playExplosionAnimation(10000);
+      log('All challengers defeated — new group challenge pending');
+      updateTimerDisplay();
+    } else {
+      console.log('[checkForSweep] no sweep (allDefeated=false)');
+    }
+  } catch (e) {
+    console.error('checkForSweep error', e);
   }
 }
 
@@ -180,11 +214,9 @@ function playExplosionAnimation(durationMs = 10000) {
     return;
   }
   const ctx = canvas.getContext('2d');
-  canvas.classList.add('explosion-canvas');
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
-  // create particles for explosion + smoke
   const particles = [];
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 3;
@@ -202,7 +234,6 @@ function playExplosionAnimation(durationMs = 10000) {
       color: ['#ff8a00','#ff3b3b','#ffd500','#ff6bcb','#ffffff'][Math.floor(Math.random()*5)]
     });
   }
-  // smoke particles
   const smoke = [];
   for (let i = 0; i < 60; i++) {
     smoke.push({
@@ -222,7 +253,6 @@ function playExplosionAnimation(durationMs = 10000) {
     const t = now - start;
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // draw particles
     particles.forEach(p => {
       p.x += p.vx;
       p.y += p.vy;
@@ -236,7 +266,6 @@ function playExplosionAnimation(durationMs = 10000) {
       ctx.globalAlpha = 1;
     });
 
-    // draw smoke
     smoke.forEach(s => {
       s.x += s.vx;
       s.y += s.vy;
@@ -294,17 +323,13 @@ async function handleTimerExpiry() {
   renderRoster();
   renderMatchHistory();
 
-  const visibleIds = playersOrderArr.filter(id => id !== championId && players[id]);
-  const allDefeated = visibleIds.length > 0 && visibleIds.every(id => defeated.has(id));
+  // central check (handles pending state and animation)
+  await checkForSweep('handleTimerExpiry');
 
-  if (allDefeated) {
-    // enter pending state: stop timer DB key, play animation, show pending message
-    await setTimerEnd(null);
-    isPendingState = true;
-    playExplosionAnimation(10000);
-    log('All challengers defeated — new group challenge pending');
-    // do not automatically assign anything here
-  } else {
+  // if no sweep, restart timer
+  const visibleIdsAfter = playersOrderArr.filter(id => id !== championId && players[id]);
+  const allDefeatedAfter = visibleIdsAfter.length > 0 && visibleIdsAfter.every(id => defeated.has(id));
+  if (!allDefeatedAfter) {
     await startTimerOneWeek();
   }
 }
@@ -371,21 +396,15 @@ function openChampionChooser(parent) {
   saveBtn.addEventListener('click', async () => {
     const val = select.value;
     if (val === 'remove-current') {
-      // remove current champion: move to roster & vacate champion; set pending
       const prev = championId;
       if (prev) {
-        // move previous champion back into order (ensure present and move to end)
         const prevIdx = playersOrderArr.indexOf(prev);
-        if (prevIdx !== -1) {
-          // ensure not duplicated
-          playersOrderArr.splice(prevIdx, 1);
-        }
+        if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); }
         playersOrderArr.push(prev);
         await savePlayersOrder();
       }
-      await set(ref(db, 'championId'), null); // vacate champion
+      await set(ref(db, 'championId'), null);
       championId = null;
-      // set pending state and stop timer
       isPendingState = true;
       await setTimerEnd(null);
       playExplosionAnimation(10000);
@@ -404,7 +423,6 @@ function openChampionChooser(parent) {
       newChampionId = val;
     }
 
-    // assign the chosen champion (clearing defeats) and restart the timer
     await assignNewChampionFromUI(newChampionId);
     parent.removeChild(chooser);
   });
@@ -492,7 +510,6 @@ function renderMatchHistory() {
 async function handleRosterClick(id) {
   const p = players[id]; if (!p) return;
 
-  // if we are in pending state, starting a challenge should not auto-start a timer elsewhere; but follow existing behavior: restart timer
   if (!isPendingState) await startTimerOneWeek();
 
   if (!championId) {
@@ -547,16 +564,8 @@ async function handleRosterClick(id) {
       triggerConfetti();
       log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
 
-      // Check for sweep after a normal entered challenge (all non-champion defeated)
-      const visibleIds = playersOrderArr.filter(x => x !== championId && players[x]);
-      const allDefeated = visibleIds.length > 0 && visibleIds.every(x => defeated.has(x));
-      if (allDefeated) {
-        // enter pending state and stop timer (play explosion)
-        await setTimerEnd(null);
-        isPendingState = true;
-        playExplosionAnimation(10000);
-        log(`Champion ${players[championId]?.name} completed sweep. New group challenge pending.`);
-      }
+      // After a normal entered challenge, check for sweep
+      await checkForSweep('dethrone:entered-challenge');
     } else {
       await persistDefeat(id);
       const idx = playersOrderArr.indexOf(id);
@@ -643,7 +652,7 @@ onValue(ref(db, 'championId'), snap => {
   const newChampionId = snap.val();
   championId = newChampionId;
   if (championId && defeated.has(championId)) defeated.delete(championId);
-  // if there is no champion, show pending state
+  // if there is no champion, set pending
   if (!championId) {
     isPendingState = true;
     playExplosionAnimation(10000);
@@ -663,6 +672,8 @@ onValue(ref(db, 'defeats'), snap => {
   defeated = new Set(Object.keys(val));
   if (championId && defeated.has(championId)) defeated.delete(championId);
   renderRoster();
+  // immediate sweep check when defeats change from DB
+  checkForSweep('defeats:db-snapshot');
 });
 
 onValue(ref(db, 'timer/endTimestamp'), snap => {
@@ -673,7 +684,6 @@ onValue(ref(db, 'timer/endTimestamp'), snap => {
     startLocalCountdown();
   } else {
     clearLocalInterval();
-    // if DB timer cleared and no champion or sweep occurred, ensure pending state is set elsewhere
     updateTimerDisplay();
   }
 });
