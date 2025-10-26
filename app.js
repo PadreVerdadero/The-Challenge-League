@@ -1,4 +1,4 @@
-// app.js — modular SDK, verbose logging for debugging, full challenge flow + Firebase writes
+// app.js — Firebase-enabled Challenge League with persistent defeats in /defeats
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import {
   getDatabase,
@@ -6,7 +6,8 @@ import {
   onValue,
   set,
   push,
-  get
+  get,
+  remove
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
 console.log('app.js loaded');
@@ -24,23 +25,24 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+// app state mirrors DB nodes
 let players = {};
 let championId = null;
 let matches = [];
-let defeated = new Set();
+let defeated = new Set(); // local mirror of /defeats
 
 const $ = id => document.getElementById(id);
 function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg; console.log(msg); }
-
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-// Rendering
+// Render champion section
 function renderChampion(){
   const el = $('champion-card');
   const champ = players[championId];
   el.innerHTML = champ ? `<h2>Champion</h2><div class="champ-name">👑 ${escapeHtml(champ.name)}</div>` : `<h2>Champion</h2><div>No champion yet</div>`;
 }
 
+// Render roster (excludes current champion)
 function renderRoster(){
   console.log('renderRoster running, players keys:', Object.keys(players));
   const roster = $('roster');
@@ -49,14 +51,15 @@ function renderRoster(){
     roster.innerHTML += '<p>No players yet</p>'; return;
   }
   Object.entries(players).forEach(([id,p])=>{
-    if (id === championId) return; // exclude champion
+    if (id === championId) return; // exclude champion from roster list
     const btn = document.createElement('button');
     btn.textContent = p.name;
     btn.dataset.id = id;
     if (defeated.has(id)) btn.classList.add('lost'); else btn.classList.remove('lost');
-    // IMPORTANT: click handler attaches here
-    btn.addEventListener('click', async (ev) => {
+
+    btn.addEventListener('click', async () => {
       console.log('roster button clicked, id=', id, 'name=', p.name);
+
       // If no champion, offer to make selected player champion
       if (!championId) {
         if (confirm(`${p.name} selected. Make them champion?`)) {
@@ -65,55 +68,64 @@ function renderRoster(){
         }
         return;
       }
+
       // Prompt for description and winner
       const desc = prompt(`Describe challenge between ${p.name} and ${players[championId].name}:`);
       if (desc === null) { console.log('challenge cancelled by user'); return; }
       const winner = prompt(`Who won? Type exactly: "${p.name}" or "${players[championId].name}"`);
       if (winner === null) { console.log('winner prompt cancelled'); return; }
 
-      // Normalize winner
-      const winnerId = winner === p.name ? id : championId;
+      // Resolve winnerId (simple exact-name match)
+      const winnerId = (winner === p.name) ? id : championId;
+      const winnerName = (winner === p.name) ? p.name : players[championId].name;
+
       const match = {
         challengerId: id,
         challengerName: p.name,
         championId,
         championName: players[championId].name,
         winnerId,
-        winnerName: winner === p.name ? p.name : players[championId].name,
+        winnerName,
         description: desc,
         timestamp: Date.now()
       };
 
-      // Write match record
+      // Write match record then update defeats/champion as needed
       try {
         const mRef = push(ref(db, 'matches'));
         await set(mRef, match);
         console.log('match written:', match);
 
-        // If challenger won -> transfer crown
         if (winnerId === id) {
-          const prev = championId;
+          // challenger won: mark previous champion defeated in DB, set new champion, remove defeat for new champion
+          const prevChampion = championId;
+          if (prevChampion && prevChampion !== id) {
+            await set(ref(db, `defeats/${prevChampion}`), true);
+          }
+          // remove any defeat flag for new champion
+          await remove(ref(db, `defeats/${id}`));
           await set(ref(db, 'championId'), id);
-          defeated.add(prev);
-          defeated.delete(id);
           triggerConfetti();
-          log(`${p.name} dethroned ${players[prev].name}`);
+          log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
         } else {
-          // challenger lost
-          defeated.add(id);
+          // challenger lost: persist defeat
+          await set(ref(db, `defeats/${id}`), true);
           log(`${p.name} lost to ${players[championId].name}`);
         }
+
+        // UI will sync via listeners, but re-render optimistically
         renderChampion(); renderRoster(); renderMatchHistory();
       } catch (err) {
         console.error('write failed', err);
         log('Error saving match: ' + err.message);
       }
-    }); // end click handler
+    });
 
     roster.appendChild(btn);
   });
 }
 
+// Render match history
 function renderMatchHistory(){
   const el = $('match-list');
   el.innerHTML = '';
@@ -125,13 +137,12 @@ function renderMatchHistory(){
   });
 }
 
-// confetti simple
+// confetti animation
 function triggerConfetti(){
   const canvas = $('confetti-canvas'); if (!canvas) return;
   const ctx = canvas.getContext('2d'); canvas.width = innerWidth; canvas.height = innerHeight;
-  const parts = [];
-  const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'];
-  for (let i=0;i<80;i++) parts.push({x:Math.random()*canvas.width, y:-50, vx:(Math.random()-0.5)*6, vy:2+Math.random()*5, size:6+Math.random()*8, c:colors[Math.floor(Math.random()*colors.length)]});
+  const parts = []; const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'];
+  for (let i=0;i<100;i++) parts.push({x:Math.random()*canvas.width, y:-50, vx:(Math.random()-0.5)*6, vy:2+Math.random()*5, size:6+Math.random()*8, c:colors[Math.floor(Math.random()*colors.length)]});
   let frame=0;
   function draw(){
     frame++; ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -141,7 +152,7 @@ function triggerConfetti(){
   draw();
 }
 
-// Add player
+// Add player to DB
 async function addPlayer(){
   const input = $('new-player-name'); const name = input.value.trim(); if (!name) { log('Enter a name'); return; }
   const id = name.toLowerCase().replace(/\s+/g,'-');
@@ -150,30 +161,42 @@ async function addPlayer(){
 }
 $('add-player-button').addEventListener('click', addPlayer);
 
-// Firebase listeners + connectivity test
+// Firebase listeners
+
+// players
 onValue(ref(db, 'players'), snap => {
   players = snap.val() || {};
   console.log('players snapshot', players);
-  // ensure roster rendering uses latest championId
   renderRoster();
 });
 
-onValue(ref(db, 'championId'), snap => {
+// championId — when champion changes, clear all defeats in DB so roster resets
+onValue(ref(db, 'championId'), async snap => {
   const newChampionId = snap.val();
-  const previousChampionId = championId;
+  const prev = championId;
   championId = newChampionId;
   console.log('champion snapshot', championId);
 
-  // Reset all defeat markers when a new champion is crowned
-  if (previousChampionId && previousChampionId !== newChampionId) {
-    defeated.clear();
-    console.log('Defeated list cleared due to new champion');
+  // If champion changed to a different id, clear the /defeats node (reset red buttons)
+  if (prev && prev !== championId) {
+    try {
+      await remove(ref(db, 'defeats'));
+      console.log('Cleared defeats due to champion change');
+    } catch (e) {
+      console.error('Failed to clear defeats on champion change', e);
+    }
+  }
+
+  // ensure current champion is not marked defeated locally
+  if (championId && defeated.has(championId)) {
+    defeated.delete(championId);
   }
 
   renderChampion();
   renderRoster();
 });
 
+// matches
 onValue(ref(db, 'matches'), snap => {
   const val = snap.val();
   matches = val ? Object.values(val) : [];
@@ -181,7 +204,17 @@ onValue(ref(db, 'matches'), snap => {
   renderMatchHistory();
 });
 
-// Quick check read to confirm connectivity
+// defeats — persistent defeat flags; keep local mirror and update roster styling
+onValue(ref(db, 'defeats'), snap => {
+  const val = snap.val() || {};
+  defeated = new Set(Object.keys(val)); // keys are player ids marked defeated
+  console.log('defeats snapshot', Array.from(defeated));
+  // always remove current champion from local defeated set (safety)
+  if (championId && defeated.has(championId)) defeated.delete(championId);
+  renderRoster();
+});
+
+// Connectivity test
 (async function testConn(){
   try { const root = await get(ref(db, '/')); console.log('Initial DB root', root.val()); log('Connected to Firebase'); }
   catch(e){ console.error('Connectivity test failed', e); log('Firebase connect failed: ' + e.message); }
