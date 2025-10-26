@@ -40,6 +40,8 @@ button:hover { background: #0056b3; }
 
 #match-list div { padding: 8px 0; border-bottom:1px solid #eee; }
 
+.match-desc { color:#444; font-size:0.9rem; margin-top:4px; margin-left:18px; }
+
 .roster-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 
 .roster-name { flex:1; text-align:left; }
