@@ -91,11 +91,19 @@ function updateTimerDisplay() {
 // assignNewChampionFromUI now clears all defeats and sets new champion
 async function assignNewChampionFromUI(newChampionId) {
   if (!newChampionId) return;
-  await clearAllDefeats();             // clear all defeat flags
-  await removeDefeat(newChampionId);   // ensure selected champion is not defeated
+
+  // Clear all defeat flags so everyone turns blue
+  await clearAllDefeats();
+
+  // Ensure the selected champion is not marked defeated
+  await removeDefeat(newChampionId);
+
+  // Persist champion change
   await set(ref(db, 'championId'), newChampionId);
+
+  // Restart the week timer when champion assigned
   await startTimerOneWeek();
-  // render calls might run before DOM ready; guard inside render functions
+
   renderChampion();
   renderRoster();
 }
@@ -162,7 +170,6 @@ function renderChampionActions() {
 }
 
 function openChampionChooser(parent) {
-  // defensive: ensure parent exists
   if (!parent) return;
   const existing = parent.querySelector('.champion-chooser');
   if (existing) { parent.removeChild(existing); return; }
@@ -382,18 +389,18 @@ onValue(ref(db, 'historicalChampions'), snap => {
 });
 
 // ----- DOM ready wiring to avoid null addEventListener errors -----
+// script tag uses defer; DOMContentLoaded handler kept for extra safety
 document.addEventListener('DOMContentLoaded', () => {
   // wire add player button
   const addBtn = $('add-player-button');
   if (addBtn) addBtn.addEventListener('click', addPlayer);
 
-  // render initial UI pieces now DOM is ready
+  // initial render now DOM is ready
   renderChampion();
   renderRoster();
   renderMatchHistory();
-  renderHistoricalChamps([]);
 
-  // connectivity test (safe to show logs)
+  // connectivity test
   (async function testConn(){
     try { const root = await get(ref(db, '/')); console.log('Initial DB root', root.val()); log('Connected to Firebase'); } catch(e) { console.error('Firebase connectivity test failed', e); log('Firebase connect failed: ' + e.message); }
   })();
