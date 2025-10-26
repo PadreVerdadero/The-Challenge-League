@@ -43,29 +43,34 @@ function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ----- helpers (immediate local updates) -----
+// normalize id values to strings used in players keys
+function norm(id){ return id == null ? id : String(id); }
+
 async function persistDefeat(id) {
+  const nid = norm(id);
   try {
-    await set(ref(db, `defeats/${id}`), true);
-    defeated.add(id);
+    await set(ref(db, `defeats/${nid}`), true);
+    defeated.add(nid);
     renderRoster();
     // Immediately check for sweep after marking defeat
-    checkForSweep('persistDefeat:' + id);
-    console.log('persistDefeat saved for', id, 'and added to local set');
+    checkForSweep('persistDefeat:' + nid);
+    console.log('persistDefeat saved for', nid, 'and added to local set');
   } catch (e) {
-    console.error('persistDefeat failed for', id, e);
+    console.error('persistDefeat failed for', nid, e);
   }
 }
 
 async function removeDefeat(id) {
+  const nid = norm(id);
   try {
-    await remove(ref(db, `defeats/${id}`));
-    defeated.delete(id);
+    await remove(ref(db, `defeats/${nid}`));
+    defeated.delete(nid);
     renderRoster();
     // Removing a defeat cannot create a sweep, but keep consistent check
-    checkForSweep('removeDefeat:' + id);
-    console.log('removeDefeat removed for', id, 'and removed from local set');
+    checkForSweep('removeDefeat:' + nid);
+    console.log('removeDefeat removed for', nid, 'and removed from local set');
   } catch (e) {
-    console.error('removeDefeat failed for', id, e);
+    console.error('removeDefeat failed for', nid, e);
   }
 }
 
@@ -102,15 +107,24 @@ async function writeMatch(match) {
 }
 
 // ----- sweep checker (centralized) -----
+// Robust sweep checker with extra logging and normalized ids.
+// Stops timer, sets pending state, plays animation once, updates UI.
 async function checkForSweep(triggerContext = 'unknown') {
   try {
-    const visibleIds = playersOrderArr.filter(id => id !== championId && players[id]);
+    // Build normalized arrays for comparison
+    const normalizedOrder = playersOrderArr.map(norm).filter(id => id != null);
+    const visibleIds = normalizedOrder.filter(id => id !== norm(championId) && players[id]);
+    const defeatedArray = Array.from(defeated).map(norm);
+
     console.log('[checkForSweep] triggered by:', triggerContext);
-    console.log('[checkForSweep] visibleIds:', visibleIds);
-    console.log('[checkForSweep] defeated set:', Array.from(defeated));
+    console.log('[checkForSweep] championId:', norm(championId));
+    console.log('[checkForSweep] playersOrderArr:', normalizedOrder);
+    console.log('[checkForSweep] visibleIds (non-champion):', visibleIds);
+    console.log('[checkForSweep] defeated set:', defeatedArray);
+
     const allDefeated = visibleIds.length > 0 && visibleIds.every(id => defeated.has(id));
     if (allDefeated) {
-      console.log('[checkForSweep] sweep detected for championId:', championId);
+      console.log('[checkForSweep] sweep detected for championId:', norm(championId));
       // Stop timer on DB and locally
       await setTimerEnd(null);
       isPendingState = true;
@@ -121,8 +135,10 @@ async function checkForSweep(triggerContext = 'unknown') {
     } else {
       console.log('[checkForSweep] no sweep (allDefeated=false)');
     }
+    return allDefeated;
   } catch (e) {
     console.error('checkForSweep error', e);
+    return false;
   }
 }
 
@@ -650,7 +666,7 @@ onValue(ref(db, 'playersOrder'), snap => {
 
 onValue(ref(db, 'championId'), snap => {
   const newChampionId = snap.val();
-  championId = newChampionId;
+  championId = norm(newChampionId);
   if (championId && defeated.has(championId)) defeated.delete(championId);
   // if there is no champion, set pending
   if (!championId) {
@@ -669,7 +685,8 @@ onValue(ref(db, 'matches'), snap => {
 
 onValue(ref(db, 'defeats'), snap => {
   const val = snap.val() || {};
-  defeated = new Set(Object.keys(val));
+  // Normalize keys into strings
+  defeated = new Set(Object.keys(val).map(norm));
   if (championId && defeated.has(championId)) defeated.delete(championId);
   renderRoster();
   // immediate sweep check when defeats change from DB
