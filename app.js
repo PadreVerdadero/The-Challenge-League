@@ -9,6 +9,8 @@ import {
   remove
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
+console.log('app.js loaded');
+
 const firebaseConfig = {
   apiKey: "AIzaSyBSCn8-SpgtrJz3SRBWfiLL-WXylProWqU",
   authDomain: "challengeleague-ec503.firebaseapp.com",
@@ -220,6 +222,20 @@ async function handleRosterClick(id) {
     } else {
       // Challenger lost: persist defeat for challenger
       await persistDefeat(id);
+
+      // Move the loser to the bottom of the order and persist
+      const idx = playersOrderArr.indexOf(id);
+      if (idx !== -1) {
+        playersOrderArr.splice(idx, 1); // remove from current position
+        playersOrderArr.push(id);       // append to end
+        await savePlayersOrder();
+        console.log('Moved loser to bottom of order:', id);
+      } else {
+        playersOrderArr.push(id);
+        await savePlayersOrder();
+        console.log('Appended loser to order (was missing):', id);
+      }
+
       log(`${p.name} lost to ${players[championId].name}`);
     }
 
