@@ -52,14 +52,6 @@ async function removeDefeat(id) {
     console.error('removeDefeat failed for', id, e);
   }
 }
-async function clearAllDefeats() {
-  try {
-    await remove(ref(db, 'defeats'));
-    console.log('clearAllDefeats removed /defeats node');
-  } catch (e) {
-    console.error('clearAllDefeats failed', e);
-  }
-}
 
 // Save players order
 async function savePlayersOrder() {
@@ -207,16 +199,32 @@ async function handleRosterClick(id) {
     console.log('match written', match);
 
     if (winnerId === id) {
-      // Challenger won: mark previous champion defeated, remove defeat for new champion, set champion,
-      // then clear defeats node so UI resets only on explicit dethrone
+      // Challenger won: dethrone previous champion
       const prevChampion = championId;
+
+      // persist defeat for previous champion (marks red)
       if (prevChampion && prevChampion !== id) {
         await persistDefeat(prevChampion);
+        // move previous champion to bottom of order
+        const prevIdx = playersOrderArr.indexOf(prevChampion);
+        if (prevIdx !== -1) {
+          playersOrderArr.splice(prevIdx, 1);
+          playersOrderArr.push(prevChampion);
+          await savePlayersOrder();
+          console.log('Moved dethroned previous champion to bottom:', prevChampion);
+        } else {
+          // if absent, append
+          playersOrderArr.push(prevChampion);
+          await savePlayersOrder();
+        }
       }
+
+      // remove defeat flag for new champion (in case it existed)
       await removeDefeat(id);
+
+      // set new champion
       await set(ref(db, 'championId'), id);
-      // clear all defeats now that a new champion has explicitly been crowned
-      await clearAllDefeats();
+
       triggerConfetti();
       log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
     } else {
@@ -226,8 +234,8 @@ async function handleRosterClick(id) {
       // Move the loser to the bottom of the order and persist
       const idx = playersOrderArr.indexOf(id);
       if (idx !== -1) {
-        playersOrderArr.splice(idx, 1); // remove from current position
-        playersOrderArr.push(id);       // append to end
+        playersOrderArr.splice(idx, 1);
+        playersOrderArr.push(id);
         await savePlayersOrder();
         console.log('Moved loser to bottom of order:', id);
       } else {
