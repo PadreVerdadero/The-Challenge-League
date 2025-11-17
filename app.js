@@ -27,7 +27,7 @@ const db = getDatabase(app);
 // App state
 let players = {};
 let championId = null;
-let matches = []; // array of match objects
+let matches = []; // array of match objects (driven from DB)
 let defeated = new Set();
 let playersOrderArr = [];
 let timerEnd = null; // ms timestamp or null
@@ -133,7 +133,6 @@ async function setLastSweep(champId, ts) {
 }
 
 // ---------------------- Champion Board write (durable guard + debounce) ----------------------
-// Avoid duplicates across clients and reloads by consulting 'sweep/last' marker.
 const CHAMPION_BOARD_DEBOUNCE_MS = 5000;
 
 async function addChampionBoardEntry(champId, champName) {
@@ -143,12 +142,10 @@ async function addChampionBoardEntry(champId, champName) {
     // 1) Check durable last-sweep marker in DB
     const last = await getLastSweep();
     if (last && last.id === champId) {
-      // If the last recorded sweep is for same champion and is recent, skip
       if ((now - (last.timestamp || 0)) < CHAMPION_BOARD_DEBOUNCE_MS) {
         console.log('addChampionBoardEntry: skipping because sweep/last already records this champion recently', champId);
         return;
       }
-      // else continue - we'll also compare latest championBoard entry below
     }
 
     // 2) Read latest championBoard entry (defensive)
@@ -163,7 +160,6 @@ async function addChampionBoardEntry(champId, champName) {
       }, null);
     }
 
-    // If latest exists and is the same champ within debounce window, skip and update durable marker
     if (latest && latest.id === champId && ((now - (latest.timestamp || 0)) < CHAMPION_BOARD_DEBOUNCE_MS)) {
       console.log('addChampionBoardEntry: skipping duplicate recent championBoard entry for', champId);
       await setLastSweep(champId, latest.timestamp || now);
@@ -198,10 +194,8 @@ async function checkForSweep(triggerContext = 'unknown') {
 
     const allDefeated = visibleIds.length > 0 && visibleIds.every(id => defeated.has(id));
     if (allDefeated) {
-      // local guard prevents repeated local writes
       if (championId && championId !== sweepRecordedFor) {
         console.log('[checkForSweep] sweep detected — recording champion locally:', championId);
-        // attempt idempotent write to championBoard (addChampionBoardEntry is itself defensive)
         if (players[championId]) {
           await addChampionBoardEntry(championId, players[championId].name);
         } else {
@@ -219,7 +213,6 @@ async function checkForSweep(triggerContext = 'unknown') {
       updateTimerDisplay();
     } else {
       console.log('[checkForSweep] no sweep (allDefeated=false)');
-      // reset local lock so future sweeps by the same champion can be recorded
       sweepRecordedFor = null;
     }
     return allDefeated;
@@ -248,7 +241,6 @@ async function setTimerEnd(msTimestamp) {
   }
 }
 
-// startTimerOneWeek(force) — only acts when force === true
 async function startTimerOneWeek(force) {
   if (!force) {
     console.log('[startTimerOneWeek] called without force — ignoring');
@@ -423,6 +415,8 @@ async function handleTimerExpiry() {
     description: 'Auto-loss: timer expired',
     timestamp: Date.now()
   };
+
+  // Persist the match to DB — do NOT push it locally; onValue listener will update matches
   await writeMatch(match);
 
   renderRoster();
@@ -671,10 +665,10 @@ async function handleRosterClick(id) {
   };
 
   try {
+    // Persist match to DB; do NOT push locally — onValue listener will update matches and re-render
     await writeMatch(match);
-    matches.push(match);
-    renderMatchHistory();
 
+    // Restart timer explicitly because a match was recorded
     await startTimerOneWeek(true);
 
     if (winnerId === id) {
