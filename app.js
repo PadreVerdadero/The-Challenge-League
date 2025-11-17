@@ -675,11 +675,9 @@ async function handleRosterClick(id) {
 
     if (winnerId === id) {
       const prevChampion = championId;
-      // NEW BEHAVIOR: do NOT mark prevChampion as defeated when dethroned.
-      // Clear all defeats so the new champion starts fresh, but keep prevChampion blue.
+      // Keep previous champion blue: clear defeats globally, move prev to back, and explicitly remove any defeat mark for prevChampion
       await clearAllDefeats();
 
-      // Move previous champion to back of queue so they must rotate in
       if (prevChampion && prevChampion !== id) {
         const prevIdx = playersOrderArr.indexOf(prevChampion);
         if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); }
@@ -688,7 +686,7 @@ async function handleRosterClick(id) {
       }
 
       // Ensure the dethroned player is not marked defeated
-      await removeDefeat(id);
+      if (prevChampion) await removeDefeat(prevChampion);
 
       // Set new champion
       await set(ref(db, 'championId'), id);
