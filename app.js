@@ -44,6 +44,9 @@ let championBoard = []; // array of { id, name, timestamp }
 // local sweep lock to avoid duplicate local writes
 let sweepRecordedFor = null; // prevents double-writing champion board
 
+// suppression flag for defeats listener to avoid stale snapshot flashes during dethrone sequence
+let suppressDefeatsListener = false;
+
 const $ = id => document.getElementById(id);
 function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg; console.log(msg); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -675,43 +678,58 @@ async function handleRosterClick(id) {
     if (winnerId === id) {
       const prevChampion = championId;
 
-      // 1) Clear global defeats first so new champion starts fresh
-      await clearAllDefeats();
+      // Suppress defeats listener while we perform multiple DB writes to avoid showing a stale snapshot
+      suppressDefeatsListener = true;
+      try {
+        // 1) Clear global defeats first so new champion starts fresh
+        await remove(ref(db, 'defeats'));
+        defeated = new Set();
+        renderRoster();
 
-      // 2) Move previous champion to back of queue
-      if (prevChampion && prevChampion !== id) {
-        const prevIdx = playersOrderArr.indexOf(prevChampion);
-        if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); }
-        playersOrderArr.push(prevChampion);
-        await savePlayersOrder();
-      }
-
-      // 3) Set new champion in DB first so UI knows who the champion is
-      await set(ref(db, 'championId'), id);
-      championId = id;
-
-      // 4) Ensure the previous champion's defeat mark is removed in DB (force remove) and locally
-      if (prevChampion) {
-        try {
-          await remove(ref(db, `defeats/${prevChampion}`));
-        } catch (e) {
-          console.warn('remove defeat DB write failed for prevChampion', prevChampion, e);
+        // 2) Move previous champion to back of queue
+        if (prevChampion && prevChampion !== id) {
+          const prevIdx = playersOrderArr.indexOf(prevChampion);
+          if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); }
+          playersOrderArr.push(prevChampion);
+          await savePlayersOrder();
         }
-        defeated.delete(prevChampion);
+
+        // 3) Set new champion in DB first so UI knows who the champion is
+        await set(ref(db, 'championId'), id);
+        championId = id;
+
+        // 4) Ensure the previous champion's defeat mark is removed in DB (force remove) and locally
+        if (prevChampion) {
+          try {
+            await remove(ref(db, `defeats/${prevChampion}`));
+          } catch (e) {
+            console.warn('remove defeat DB write failed for prevChampion', prevChampion, e);
+          }
+          defeated.delete(prevChampion);
+        }
+
+        // 5) Ensure the new champion is not marked defeated (DB + local)
+        try { await remove(ref(db, `defeats/${id}`)); } catch(e){ console.warn('clear new champion defeat failed', e); }
+        defeated.delete(id);
+
+        // 6) Visual feedback and final checks
+        triggerConfetti();
+        log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
+        renderChampion();
+        renderRoster();
+
+        // 7) Re-run sweep check after local state updated
+        await checkForSweep('dethrone:entered-challenge');
+
+        // 8) Re-read defeats from DB to pick up any concurrent changes and update local state
+        const snap = await get(ref(db, 'defeats'));
+        const val = snap.val() || {};
+        defeated = new Set(Object.keys(val).map(norm));
+        if (championId && defeated.has(championId)) defeated.delete(championId);
+        renderRoster();
+      } finally {
+        suppressDefeatsListener = false;
       }
-
-      // 5) Ensure the new champion is not marked defeated (DB + local)
-      try { await remove(ref(db, `defeats/${id}`)); } catch(e){ console.warn('clear new champion defeat failed', e); }
-      defeated.delete(id);
-
-      // 6) Visual feedback and final checks
-      triggerConfetti();
-      log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
-      renderChampion();
-      renderRoster();
-
-      // 7) Re-run sweep check after local state updated
-      await checkForSweep('dethrone:entered-challenge');
     } else {
       // challenger lost: persist defeat and move them to back of queue
       await persistDefeat(id);
@@ -813,7 +831,12 @@ onValue(ref(db, 'matches'), snap => {
   renderMatchHistory();
 });
 
-onValue(ref(db, 'defeats'), snap => {
+// defeats listener respects suppress flag
+onValue(ref(db, 'defeats'), async snap => {
+  if (suppressDefeatsListener) {
+    console.log('[defeats listener] suppressed');
+    return;
+  }
   const val = snap.val() || {};
   defeated = new Set(Object.keys(val).map(norm));
   if (championId && defeated.has(championId)) defeated.delete(championId);
