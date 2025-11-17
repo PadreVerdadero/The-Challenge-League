@@ -42,19 +42,18 @@ const $ = id => document.getElementById(id);
 function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg; console.log(msg); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-// ----- helpers (immediate local updates) -----
 // normalize id values to strings used in players keys
 function norm(id){ return id == null ? id : String(id); }
 
+// ---------------------- Helpers ----------------------
 async function persistDefeat(id) {
   const nid = norm(id);
   try {
     await set(ref(db, `defeats/${nid}`), true);
     defeated.add(nid);
     renderRoster();
-    // Immediately check for sweep after marking defeat
     checkForSweep('persistDefeat:' + nid);
-    console.log('persistDefeat saved for', nid, 'and added to local set');
+    console.log('persistDefeat saved for', nid);
   } catch (e) {
     console.error('persistDefeat failed for', nid, e);
   }
@@ -66,9 +65,8 @@ async function removeDefeat(id) {
     await remove(ref(db, `defeats/${nid}`));
     defeated.delete(nid);
     renderRoster();
-    // Removing a defeat cannot create a sweep, but keep consistent check
     checkForSweep('removeDefeat:' + nid);
-    console.log('removeDefeat removed for', nid, 'and removed from local set');
+    console.log('removeDefeat removed for', nid);
   } catch (e) {
     console.error('removeDefeat failed for', nid, e);
   }
@@ -79,9 +77,8 @@ async function clearAllDefeats() {
     await remove(ref(db, 'defeats'));
     defeated = new Set();
     renderRoster();
-    // Check (should be false) but keeps state consistent
     checkForSweep('clearAllDefeats');
-    console.log('clearAllDefeats removed /defeats and cleared local set');
+    console.log('clearAllDefeats removed /defeats');
   } catch (e) {
     console.error('clearAllDefeats failed', e);
   }
@@ -97,6 +94,7 @@ async function savePlayersOrder() {
   }
 }
 
+// writeMatch persists a match to DB (caller should only call when ready)
 async function writeMatch(match) {
   try {
     const mRef = push(ref(db, 'matches'));
@@ -104,15 +102,13 @@ async function writeMatch(match) {
     console.log('writeMatch persisted', match);
   } catch (e) {
     console.error('writeMatch failed', e);
+    throw e;
   }
 }
 
-// ----- sweep checker (centralized) -----
-// Robust sweep checker with extra logging and normalized ids.
-// Stops timer, sets pending state, plays animation once, updates UI.
+// ---------------------- Sweep checker ----------------------
 async function checkForSweep(triggerContext = 'unknown') {
   try {
-    // Build normalized arrays for comparison
     const normalizedOrder = playersOrderArr.map(norm).filter(id => id != null);
     const visibleIds = normalizedOrder.filter(id => id !== norm(championId) && players[id]);
     const defeatedArray = Array.from(defeated).map(norm);
@@ -126,10 +122,8 @@ async function checkForSweep(triggerContext = 'unknown') {
     const allDefeated = visibleIds.length > 0 && visibleIds.every(id => defeated.has(id));
     if (allDefeated) {
       console.log('[checkForSweep] sweep detected for championId:', norm(championId));
-      // Stop timer on DB and locally
       await setTimerEnd(null);
       isPendingState = true;
-      // Play the explosion animation if not already playing
       playExplosionAnimation(10000);
       log('All challengers defeated — new group challenge pending');
       updateTimerDisplay();
@@ -143,9 +137,8 @@ async function checkForSweep(triggerContext = 'unknown') {
   }
 }
 
-// ----- timer helpers -----
-// IMPORTANT: startTimerOneWeek now requires an explicit `force=true` argument to actually set the timer.
-// This prevents accidental restarts from UI interactions that merely open prompts.
+// ---------------------- Timer helpers ----------------------
+// startTimerOneWeek(force) — only acts when force === true
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function setTimerEnd(msTimestamp) {
@@ -164,12 +157,9 @@ async function setTimerEnd(msTimestamp) {
   }
 }
 
-// startTimerOneWeek(force)
-// - If force is truthy, set the timer to now + 7 days.
-// - If force is falsy (or missing), function will only log and not change DB.
 async function startTimerOneWeek(force) {
   if (!force) {
-    console.log('[startTimerOneWeek] called without force — ignoring to avoid accidental restart');
+    console.log('[startTimerOneWeek] called without force — ignoring');
     return;
   }
   const end = Date.now() + WEEK_MS;
@@ -201,7 +191,6 @@ function updateTimerDisplay() {
   const el = $('timer-display');
   if (!el) return;
 
-  // If in pending state, show the pending message
   if (isPendingState || !championId) {
     el.textContent = 'New group challenge pending';
     el.classList.add('pending');
@@ -232,16 +221,13 @@ function updateTimerDisplay() {
   }
 }
 
-// ----- explosion animation (10s) -----
+// ---------------------- Explosion animation ----------------------
 function playExplosionAnimation(durationMs = 10000) {
   if (pendingAnimPlaying) return;
   pendingAnimPlaying = true;
 
   const canvas = $('confetti-canvas');
-  if (!canvas) {
-    pendingAnimPlaying = false;
-    return;
-  }
+  if (!canvas) { pendingAnimPlaying = false; return; }
   const ctx = canvas.getContext('2d');
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -315,9 +301,7 @@ function playExplosionAnimation(durationMs = 10000) {
   requestAnimationFrame(frame);
 }
 
-// ----- expiry behaviour -----
-// On expiry: mark first visible defeated, move to end, write synthetic match.
-// If this produces a sweep, STOP timer, enter pending state and play explosion animation.
+// ---------------------- Expiry behaviour ----------------------
 async function handleTimerExpiry() {
   console.log('Timer expired — processing penalty');
   const firstId = playersOrderArr.find(id => id !== championId && players[id]);
@@ -352,18 +336,16 @@ async function handleTimerExpiry() {
   renderRoster();
   renderMatchHistory();
 
-  // central check (handles pending state and animation)
   await checkForSweep('handleTimerExpiry');
 
-  // if no sweep, restart timer
   const visibleIdsAfter = playersOrderArr.filter(id => id !== championId && players[id]);
   const allDefeatedAfter = visibleIdsAfter.length > 0 && visibleIdsAfter.every(id => defeated.has(id));
   if (!allDefeatedAfter) {
-    await startTimerOneWeek(true); // explicit forced restart only here
+    await startTimerOneWeek(true); // explicit forced restart only after expiry flow
   }
 }
 
-// ----- rendering -----
+// ---------------------- Rendering ----------------------
 function renderChampion() {
   const el = $('champion-card');
   if (!el) return;
@@ -398,7 +380,6 @@ function openChampionChooser(parent) {
 
   const select = document.createElement('select');
 
-  // changed option: "remove current champion"
   const removeOpt = document.createElement('option');
   removeOpt.value = 'remove-current';
   removeOpt.textContent = 'Remove current champion';
@@ -475,14 +456,12 @@ async function assignNewChampionFromUI(newChampionId) {
   championId = newChampionId;
   isPendingState = false;
   pendingAnimPlaying = false;
-  // start timer because a champion was explicitly set
-  await startTimerOneWeek(true);
+  await startTimerOneWeek(true); // explicit forced start when a champion is chosen
   renderChampion();
   renderRoster();
   renderMatchHistory();
 }
 
-// Render roster
 function renderRoster() {
   const roster = $('roster');
   if (!roster) return;
@@ -516,7 +495,6 @@ function renderRoster() {
   });
 }
 
-// Render match history with descriptions
 function renderMatchHistory() {
   const list = $('match-list');
   if (!list) return;
@@ -536,19 +514,20 @@ function renderMatchHistory() {
   });
 }
 
-// ----- challenge flow -----
-// IMPORTANT CHANGE: Do NOT restart the timer immediately when opening the prompts.
-// Only start/restart the timer when a match is actually recorded OR when a champion is explicitly assigned.
+// ---------------------- Challenge flow (key fix) ----------------------
+// IMPORTANT: no writes and no timer restarts happen until BOTH prompts return non-null.
+// Only after successfully writing the match do we call startTimerOneWeek(true).
 async function handleRosterClick(id) {
   const p = players[id]; if (!p) return;
 
+  // If there is no champion, selecting someone may assign them immediately.
   if (!championId) {
     if (confirm(`${p.name} selected. Make them champion?`)) {
       await set(ref(db, 'championId'), id);
       championId = id;
       isPendingState = false;
       pendingAnimPlaying = false;
-      // Start timer because champion was explicitly set
+      // explicit: start timer only because champion was explicitly set
       await startTimerOneWeek(true);
       renderChampion();
       renderRoster();
@@ -556,13 +535,21 @@ async function handleRosterClick(id) {
     return;
   }
 
-  // Open prompts but do NOT touch the timer yet.
+  // Prompt for description first. If user cancels, do nothing (no writes, no timer).
   const desc = prompt(`Describe the challenge between ${p.name} and ${players[championId].name}:`);
-  if (desc === null) return; // user cancelled description -> do nothing (timer not changed)
+  if (desc === null) {
+    console.log('Challenge description cancelled; aborting flow, no timer change.');
+    return;
+  }
 
+  // Prompt for winner. If user cancels, do nothing (no writes, no timer).
   const winnerName = prompt(`Who won? Type exactly: "${p.name}" or "${players[championId].name}"`);
-  if (winnerName === null) return; // user cancelled winner prompt -> do nothing (timer not changed)
+  if (winnerName === null) {
+    console.log('Winner prompt cancelled; aborting flow, no timer change.');
+    return;
+  }
 
+  // Now both prompts completed: compose match and persist it.
   const winnerId = (winnerName === p.name) ? id : championId;
   const winnerDisplay = (winnerName === p.name) ? p.name : players[championId].name;
 
@@ -578,12 +565,13 @@ async function handleRosterClick(id) {
   };
 
   try {
-    // persist match -> when saved we restart the timer because a challenge was recorded
+    // persist match to DB (only now)
     await writeMatch(match);
+    // local push for immediate UI
     matches.push(match);
     renderMatchHistory();
 
-    // Restart timer because a match was actually recorded (explicit)
+    // explicit: restart timer because a match was recorded
     await startTimerOneWeek(true);
 
     if (winnerId === id) {
@@ -601,7 +589,7 @@ async function handleRosterClick(id) {
       triggerConfetti();
       log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
 
-      // After a normal entered challenge, check for sweep
+      // check for sweep after an entered match
       await checkForSweep('dethrone:entered-challenge');
     } else {
       await persistDefeat(id);
@@ -622,7 +610,7 @@ async function handleRosterClick(id) {
   }
 }
 
-// ----- confetti (short celebratory) -----
+// ---------------------- Confetti ----------------------
 function triggerConfetti() {
   const canvas = $('confetti-canvas');
   if (!canvas) return;
@@ -647,7 +635,7 @@ function triggerConfetti() {
   d();
 }
 
-// ----- add player -----
+// ---------------------- Add player ----------------------
 async function addPlayer() {
   const input = $('new-player-name');
   if (!input) return;
@@ -666,7 +654,7 @@ async function addPlayer() {
 }
 $('add-player-button')?.addEventListener('click', addPlayer);
 
-// ----- Firebase listeners -----
+// ---------------------- Firebase listeners ----------------------
 onValue(ref(db, 'players'), snap => {
   players = snap.val() || {};
   const allIds = Object.keys(players);
@@ -689,7 +677,6 @@ onValue(ref(db, 'championId'), snap => {
   const newChampionId = snap.val();
   championId = norm(newChampionId);
   if (championId && defeated.has(championId)) defeated.delete(championId);
-  // if there is no champion, set pending
   if (!championId) {
     isPendingState = true;
     playExplosionAnimation(10000);
@@ -706,11 +693,9 @@ onValue(ref(db, 'matches'), snap => {
 
 onValue(ref(db, 'defeats'), snap => {
   const val = snap.val() || {};
-  // Normalize keys into strings
   defeated = new Set(Object.keys(val).map(norm));
   if (championId && defeated.has(championId)) defeated.delete(championId);
   renderRoster();
-  // immediate sweep check when defeats change from DB
   checkForSweep('defeats:db-snapshot');
 });
 
