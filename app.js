@@ -462,6 +462,7 @@ async function assignNewChampionFromUI(newChampionId) {
   championId = newChampionId;
   isPendingState = false;
   pendingAnimPlaying = false;
+  // start timer because a champion was just set explicitly
   await startTimerOneWeek();
   renderChampion();
   renderRoster();
@@ -523,17 +524,19 @@ function renderMatchHistory() {
 }
 
 // ----- challenge flow -----
+// IMPORTANT CHANGE: Do NOT restart the timer immediately when opening the prompts.
+// Only start/restart the timer when a match is actually recorded OR when a champion is explicitly assigned.
 async function handleRosterClick(id) {
   const p = players[id]; if (!p) return;
 
-  if (!isPendingState) await startTimerOneWeek();
-
+  // If no champion, selecting a person can prompt to make them champion.
   if (!championId) {
     if (confirm(`${p.name} selected. Make them champion?`)) {
       await set(ref(db, 'championId'), id);
       championId = id;
       isPendingState = false;
       pendingAnimPlaying = false;
+      // Start timer because champion was explicitly set
       await startTimerOneWeek();
       renderChampion();
       renderRoster();
@@ -541,10 +544,12 @@ async function handleRosterClick(id) {
     return;
   }
 
+  // Open prompts but do NOT touch the timer yet.
   const desc = prompt(`Describe the challenge between ${p.name} and ${players[championId].name}:`);
-  if (desc === null) return;
+  if (desc === null) return; // user cancelled description -> do nothing (timer not changed)
+
   const winnerName = prompt(`Who won? Type exactly: "${p.name}" or "${players[championId].name}"`);
-  if (winnerName === null) return;
+  if (winnerName === null) return; // user cancelled winner prompt -> do nothing (timer not changed)
 
   const winnerId = (winnerName === p.name) ? id : championId;
   const winnerDisplay = (winnerName === p.name) ? p.name : players[championId].name;
@@ -561,9 +566,13 @@ async function handleRosterClick(id) {
   };
 
   try {
+    // persist match -> when saved we restart the timer because a challenge was recorded
     await writeMatch(match);
     matches.push(match);
     renderMatchHistory();
+
+    // Restart timer because a match was actually recorded
+    await startTimerOneWeek();
 
     if (winnerId === id) {
       const prevChampion = championId;
