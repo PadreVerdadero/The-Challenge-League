@@ -242,7 +242,6 @@ async function setTimerEnd(msTimestamp) {
   }
 }
 
-// startTimerOneWeek(force) — only acts when force === true
 async function startTimerOneWeek(force) {
   if (!force) {
     console.log('[startTimerOneWeek] called without force — ignoring');
@@ -687,30 +686,31 @@ async function handleRosterClick(id) {
         await savePlayersOrder();
       }
 
-      // 3) Explicitly ensure prevChampion is not marked defeated in DB and locally
-      if (prevChampion) {
-        try {
-          await removeDefeat(prevChampion); // removes DB node and updates local 'defeated' via listener
-        } catch (e) {
-          console.warn('removeDefeat(prevChampion) failed, continuing. Will also clear local state.', e);
-        }
-        // immediate local defensive fix so UI shows blue without waiting for DB listener
-        defeated.delete(prevChampion);
-        renderRoster();
-      }
-
-      // 4) Ensure the new champion is not marked defeated
-      await removeDefeat(id);
-      defeated.delete(id);
-      renderRoster();
-
-      // 5) Set new champion
+      // 3) Set new champion in DB first so UI knows who the champion is
       await set(ref(db, 'championId'), id);
       championId = id;
+
+      // 4) Ensure the previous champion's defeat mark is removed in DB (force remove) and locally
+      if (prevChampion) {
+        try {
+          await remove(ref(db, `defeats/${prevChampion}`));
+        } catch (e) {
+          console.warn('remove defeat DB write failed for prevChampion', prevChampion, e);
+        }
+        defeated.delete(prevChampion);
+      }
+
+      // 5) Ensure the new champion is not marked defeated (DB + local)
+      try { await remove(ref(db, `defeats/${id}`)); } catch(e){ console.warn('clear new champion defeat failed', e); }
+      defeated.delete(id);
+
+      // 6) Visual feedback and final checks
       triggerConfetti();
       log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
+      renderChampion();
+      renderRoster();
 
-      // 6) Re-run sweep check
+      // 7) Re-run sweep check after local state updated
       await checkForSweep('dethrone:entered-challenge');
     } else {
       // challenger lost: persist defeat and move them to back of queue
