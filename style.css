@@ -61,5 +61,7 @@ button:hover { background: #0056b3; }
 .champion-chooser { display:inline-block; margin-left:8px; vertical-align:middle; }
 .champion-chooser select, .champion-chooser button { margin-left:6px; }
 
-/* explosion animation canvas overlay styles */
-.explosion-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 9998; }
+/* Champion Board */
+#champion-board-list div { padding:8px 4px; border-bottom:1px solid #efefef; font-size:0.95rem; display:flex; justify-content:space-between; align-items:center; }
+.champion-board-name { font-weight:700; color:#2c3e50; }
+.champion-board-time { font-size:0.85rem; color:#666; }
