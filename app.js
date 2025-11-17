@@ -667,7 +667,7 @@ async function handleRosterClick(id) {
   };
 
   try {
-    // Persist match to DB; do NOT push locally — onValue listener will update matches and re-render
+    // Persist match to DB; onValue listener will refresh matches
     await writeMatch(match);
 
     // Restart timer explicitly because a match was recorded
@@ -675,9 +675,11 @@ async function handleRosterClick(id) {
 
     if (winnerId === id) {
       const prevChampion = championId;
-      // Keep previous champion blue: clear defeats globally, move prev to back, and explicitly remove any defeat mark for prevChampion
+
+      // 1) Clear global defeats first so new champion starts fresh
       await clearAllDefeats();
 
+      // 2) Move previous champion to back of queue
       if (prevChampion && prevChampion !== id) {
         const prevIdx = playersOrderArr.indexOf(prevChampion);
         if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); }
@@ -685,17 +687,33 @@ async function handleRosterClick(id) {
         await savePlayersOrder();
       }
 
-      // Ensure the dethroned player is not marked defeated
-      if (prevChampion) await removeDefeat(prevChampion);
+      // 3) Explicitly ensure prevChampion is not marked defeated in DB and locally
+      if (prevChampion) {
+        try {
+          await removeDefeat(prevChampion); // removes DB node and updates local 'defeated' via listener
+        } catch (e) {
+          console.warn('removeDefeat(prevChampion) failed, continuing. Will also clear local state.', e);
+        }
+        // immediate local defensive fix so UI shows blue without waiting for DB listener
+        defeated.delete(prevChampion);
+        renderRoster();
+      }
 
-      // Set new champion
+      // 4) Ensure the new champion is not marked defeated
+      await removeDefeat(id);
+      defeated.delete(id);
+      renderRoster();
+
+      // 5) Set new champion
       await set(ref(db, 'championId'), id);
       championId = id;
       triggerConfetti();
       log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
 
+      // 6) Re-run sweep check
       await checkForSweep('dethrone:entered-challenge');
     } else {
+      // challenger lost: persist defeat and move them to back of queue
       await persistDefeat(id);
       const idx = playersOrderArr.indexOf(id);
       if (idx !== -1) { playersOrderArr.splice(idx,1); playersOrderArr.push(id); } else playersOrderArr.push(id);
