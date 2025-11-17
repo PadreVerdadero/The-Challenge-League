@@ -38,6 +38,9 @@ let processingExpiry = false;
 let isPendingState = false; // true when "New group challenge pending" should show
 let pendingAnimPlaying = false; // to avoid replaying animation repeatedly
 
+// champion board local
+let championBoard = []; // array of { id, name, timestamp }
+
 const $ = id => document.getElementById(id);
 function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg; console.log(msg); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -106,6 +109,18 @@ async function writeMatch(match) {
   }
 }
 
+// Write champion board entry when a champion completes a sweep
+async function addChampionBoardEntry(champId, champName) {
+  try {
+    const entry = { id: champId, name: champName, timestamp: Date.now() };
+    const bRef = push(ref(db, 'championBoard'));
+    await set(bRef, entry);
+    console.log('Champion Board entry added', entry);
+  } catch (e) {
+    console.error('addChampionBoardEntry failed', e);
+  }
+}
+
 // ---------------------- Sweep checker ----------------------
 async function checkForSweep(triggerContext = 'unknown') {
   try {
@@ -122,8 +137,17 @@ async function checkForSweep(triggerContext = 'unknown') {
     const allDefeated = visibleIds.length > 0 && visibleIds.every(id => defeated.has(id));
     if (allDefeated) {
       console.log('[checkForSweep] sweep detected for championId:', norm(championId));
+      // record to champion board (if champion exists)
+      if (championId && players[championId]) {
+        await addChampionBoardEntry(championId, players[championId].name);
+      } else if (championId) {
+        // If champion name not yet in players map, write with id as fallback
+        await addChampionBoardEntry(championId, String(championId));
+      }
+      // Stop timer on DB and locally
       await setTimerEnd(null);
       isPendingState = true;
+      // Play the explosion animation if not already playing
       playExplosionAnimation(10000);
       log('All challengers defeated — new group challenge pending');
       updateTimerDisplay();
@@ -138,7 +162,6 @@ async function checkForSweep(triggerContext = 'unknown') {
 }
 
 // ---------------------- Timer helpers ----------------------
-// startTimerOneWeek(force) — only acts when force === true
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function setTimerEnd(msTimestamp) {
@@ -514,20 +537,37 @@ function renderMatchHistory() {
   });
 }
 
-// ---------------------- Challenge flow (key fix) ----------------------
-// IMPORTANT: no writes and no timer restarts happen until BOTH prompts return non-null.
-// Only after successfully writing the match do we call startTimerOneWeek(true).
+// Render Champion Board
+function renderChampionBoard() {
+  const el = $('champion-board-list');
+  if (!el) return;
+  el.innerHTML = '';
+  const sorted = championBoard.slice().sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
+  sorted.forEach(entry => {
+    const d = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '';
+    const row = document.createElement('div');
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'champion-board-name';
+    nameSpan.textContent = entry.name || entry.id || 'Unknown';
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'champion-board-time';
+    timeSpan.textContent = d;
+    row.appendChild(nameSpan);
+    row.appendChild(timeSpan);
+    el.appendChild(row);
+  });
+}
+
+// ---------------------- Challenge flow ----------------------
 async function handleRosterClick(id) {
   const p = players[id]; if (!p) return;
 
-  // If there is no champion, selecting someone may assign them immediately.
   if (!championId) {
     if (confirm(`${p.name} selected. Make them champion?`)) {
       await set(ref(db, 'championId'), id);
       championId = id;
       isPendingState = false;
       pendingAnimPlaying = false;
-      // explicit: start timer only because champion was explicitly set
       await startTimerOneWeek(true);
       renderChampion();
       renderRoster();
@@ -535,21 +575,18 @@ async function handleRosterClick(id) {
     return;
   }
 
-  // Prompt for description first. If user cancels, do nothing (no writes, no timer).
   const desc = prompt(`Describe the challenge between ${p.name} and ${players[championId].name}:`);
   if (desc === null) {
     console.log('Challenge description cancelled; aborting flow, no timer change.');
     return;
   }
 
-  // Prompt for winner. If user cancels, do nothing (no writes, no timer).
   const winnerName = prompt(`Who won? Type exactly: "${p.name}" or "${players[championId].name}"`);
   if (winnerName === null) {
     console.log('Winner prompt cancelled; aborting flow, no timer change.');
     return;
   }
 
-  // Now both prompts completed: compose match and persist it.
   const winnerId = (winnerName === p.name) ? id : championId;
   const winnerDisplay = (winnerName === p.name) ? p.name : players[championId].name;
 
@@ -565,13 +602,10 @@ async function handleRosterClick(id) {
   };
 
   try {
-    // persist match to DB (only now)
     await writeMatch(match);
-    // local push for immediate UI
     matches.push(match);
     renderMatchHistory();
 
-    // explicit: restart timer because a match was recorded
     await startTimerOneWeek(true);
 
     if (winnerId === id) {
@@ -589,7 +623,6 @@ async function handleRosterClick(id) {
       triggerConfetti();
       log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
 
-      // check for sweep after an entered match
       await checkForSweep('dethrone:entered-challenge');
     } else {
       await persistDefeat(id);
@@ -697,6 +730,13 @@ onValue(ref(db, 'defeats'), snap => {
   if (championId && defeated.has(championId)) defeated.delete(championId);
   renderRoster();
   checkForSweep('defeats:db-snapshot');
+});
+
+// championBoard listener
+onValue(ref(db, 'championBoard'), snap => {
+  const val = snap.val() || {};
+  championBoard = Object.values(val);
+  renderChampionBoard();
 });
 
 onValue(ref(db, 'timer/endTimestamp'), snap => {
