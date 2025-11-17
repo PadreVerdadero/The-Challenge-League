@@ -112,39 +112,72 @@ async function writeMatch(match) {
   }
 }
 
-// ---------------------- Champion Board write (idempotent) ----------------------
-// To avoid duplicates across clients, check the most recent entry and skip if the same champion
-// was recorded within the last DEBOUNCE_MS milliseconds.
+// ---------------------- Durable sweep marker helpers ----------------------
+async function getLastSweep() {
+  try {
+    const snap = await get(ref(db, 'sweep/last'));
+    return snap.val() || null; // { id: 'champId', timestamp: 1234567890 } or null
+  } catch (e) {
+    console.error('getLastSweep failed', e);
+    return null;
+  }
+}
+
+async function setLastSweep(champId, ts) {
+  try {
+    await set(ref(db, 'sweep/last'), { id: champId, timestamp: ts });
+    console.log('setLastSweep saved', champId, ts);
+  } catch (e) {
+    console.error('setLastSweep failed', e);
+  }
+}
+
+// ---------------------- Champion Board write (durable guard + debounce) ----------------------
+// Avoid duplicates across clients and reloads by consulting 'sweep/last' marker.
 const CHAMPION_BOARD_DEBOUNCE_MS = 5000;
 
 async function addChampionBoardEntry(champId, champName) {
   try {
-    // Read existing championBoard entries once
+    const now = Date.now();
+
+    // 1) Check durable last-sweep marker in DB
+    const last = await getLastSweep();
+    if (last && last.id === champId) {
+      // If the last recorded sweep is for same champion and is recent, skip
+      if ((now - (last.timestamp || 0)) < CHAMPION_BOARD_DEBOUNCE_MS) {
+        console.log('addChampionBoardEntry: skipping because sweep/last already records this champion recently', champId);
+        return;
+      }
+      // else continue - we'll also compare latest championBoard entry below
+    }
+
+    // 2) Read latest championBoard entry (defensive)
     const snap = await get(ref(db, 'championBoard'));
     const val = snap.val() || {};
     const entries = Object.values(val);
-
-    // Find latest entry by timestamp
     let latest = null;
     if (entries.length) {
       latest = entries.reduce((best, e) => {
         if (!best) return e;
-        if ((e.timestamp || 0) > (best.timestamp || 0)) return e;
-        return best;
+        return ( (e.timestamp || 0) > (best.timestamp || 0) ) ? e : best;
       }, null);
     }
 
-    const now = Date.now();
-    if (latest && latest.id && latest.id === champId && ((now - (latest.timestamp || 0)) < CHAMPION_BOARD_DEBOUNCE_MS)) {
-      console.log('addChampionBoardEntry: skipping duplicate recent entry for', champId);
+    // If latest exists and is the same champ within debounce window, skip and update durable marker
+    if (latest && latest.id === champId && ((now - (latest.timestamp || 0)) < CHAMPION_BOARD_DEBOUNCE_MS)) {
+      console.log('addChampionBoardEntry: skipping duplicate recent championBoard entry for', champId);
+      await setLastSweep(champId, latest.timestamp || now);
       return;
     }
 
-    // Safe to push a new entry
+    // 3) Safe to push new entry and set durable marker
     const entry = { id: champId, name: champName, timestamp: now };
     const bRef = push(ref(db, 'championBoard'));
     await set(bRef, entry);
     console.log('Champion Board entry added', entry);
+
+    // 4) Persist durable marker of this sweep
+    await setLastSweep(champId, now);
   } catch (e) {
     console.error('addChampionBoardEntry failed', e);
   }
