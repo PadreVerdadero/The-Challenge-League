@@ -213,6 +213,7 @@ async function checkForSweep(triggerContext = 'unknown') {
       updateTimerDisplay();
     } else {
       console.log('[checkForSweep] no sweep (allDefeated=false)');
+      // reset local lock so future sweeps by the same champion can be recorded
       sweepRecordedFor = null;
     }
     return allDefeated;
@@ -241,6 +242,7 @@ async function setTimerEnd(msTimestamp) {
   }
 }
 
+// startTimerOneWeek(force) — only acts when force === true
 async function startTimerOneWeek(force) {
   if (!force) {
     console.log('[startTimerOneWeek] called without force — ignoring');
@@ -673,14 +675,22 @@ async function handleRosterClick(id) {
 
     if (winnerId === id) {
       const prevChampion = championId;
+      // NEW BEHAVIOR: do NOT mark prevChampion as defeated when dethroned.
+      // Clear all defeats so the new champion starts fresh, but keep prevChampion blue.
       await clearAllDefeats();
+
+      // Move previous champion to back of queue so they must rotate in
       if (prevChampion && prevChampion !== id) {
-        await persistDefeat(prevChampion);
         const prevIdx = playersOrderArr.indexOf(prevChampion);
-        if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); playersOrderArr.push(prevChampion); } else playersOrderArr.push(prevChampion);
+        if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); }
+        playersOrderArr.push(prevChampion);
         await savePlayersOrder();
       }
+
+      // Ensure the dethroned player is not marked defeated
       await removeDefeat(id);
+
+      // Set new champion
       await set(ref(db, 'championId'), id);
       championId = id;
       triggerConfetti();
