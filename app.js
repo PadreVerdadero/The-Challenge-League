@@ -101,6 +101,7 @@ async function writeMatch(match) {
   try {
     const mRef = push(ref(db, 'matches'));
     await set(mRef, match);
+    console.log('writeMatch persisted', match);
   } catch (e) {
     console.error('writeMatch failed', e);
   }
@@ -143,6 +144,8 @@ async function checkForSweep(triggerContext = 'unknown') {
 }
 
 // ----- timer helpers -----
+// IMPORTANT: startTimerOneWeek now requires an explicit `force=true` argument to actually set the timer.
+// This prevents accidental restarts from UI interactions that merely open prompts.
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function setTimerEnd(msTimestamp) {
@@ -150,17 +153,27 @@ async function setTimerEnd(msTimestamp) {
     if (msTimestamp === null) {
       await remove(ref(db, 'timer/endTimestamp'));
       timerEnd = null;
+      console.log('[setTimerEnd] cleared timer in DB');
     } else {
       await set(ref(db, 'timer/endTimestamp'), msTimestamp);
       timerEnd = msTimestamp;
+      console.log('[setTimerEnd] set timer in DB to', msTimestamp);
     }
   } catch (e) {
     console.error('setTimerEnd failed', e);
   }
 }
 
-async function startTimerOneWeek() {
+// startTimerOneWeek(force)
+// - If force is truthy, set the timer to now + 7 days.
+// - If force is falsy (or missing), function will only log and not change DB.
+async function startTimerOneWeek(force) {
+  if (!force) {
+    console.log('[startTimerOneWeek] called without force — ignoring to avoid accidental restart');
+    return;
+  }
   const end = Date.now() + WEEK_MS;
+  console.log('[startTimerOneWeek] forcing new timer to', end);
   await setTimerEnd(end);
 }
 
@@ -346,7 +359,7 @@ async function handleTimerExpiry() {
   const visibleIdsAfter = playersOrderArr.filter(id => id !== championId && players[id]);
   const allDefeatedAfter = visibleIdsAfter.length > 0 && visibleIdsAfter.every(id => defeated.has(id));
   if (!allDefeatedAfter) {
-    await startTimerOneWeek();
+    await startTimerOneWeek(true); // explicit forced restart only here
   }
 }
 
@@ -462,8 +475,8 @@ async function assignNewChampionFromUI(newChampionId) {
   championId = newChampionId;
   isPendingState = false;
   pendingAnimPlaying = false;
-  // start timer because a champion was just set explicitly
-  await startTimerOneWeek();
+  // start timer because a champion was explicitly set
+  await startTimerOneWeek(true);
   renderChampion();
   renderRoster();
   renderMatchHistory();
@@ -529,7 +542,6 @@ function renderMatchHistory() {
 async function handleRosterClick(id) {
   const p = players[id]; if (!p) return;
 
-  // If no champion, selecting a person can prompt to make them champion.
   if (!championId) {
     if (confirm(`${p.name} selected. Make them champion?`)) {
       await set(ref(db, 'championId'), id);
@@ -537,7 +549,7 @@ async function handleRosterClick(id) {
       isPendingState = false;
       pendingAnimPlaying = false;
       // Start timer because champion was explicitly set
-      await startTimerOneWeek();
+      await startTimerOneWeek(true);
       renderChampion();
       renderRoster();
     }
@@ -571,8 +583,8 @@ async function handleRosterClick(id) {
     matches.push(match);
     renderMatchHistory();
 
-    // Restart timer because a match was actually recorded
-    await startTimerOneWeek();
+    // Restart timer because a match was actually recorded (explicit)
+    await startTimerOneWeek(true);
 
     if (winnerId === id) {
       const prevChampion = championId;
