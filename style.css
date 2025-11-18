@@ -2,9 +2,9 @@
   --bg:#071027;
   --card:#0b1220;
   --muted:#98a0b3;
-  --accent:#1f6feb;    /* blue */
-  --success:#2b8a3e;   /* green */
-  --danger:#ff4d4f;    /* red */
+  --accent:#1f6feb;
+  --success:#2b8a3e;
+  --danger:#ff4d4f;
   --glass: rgba(255,255,255,0.03);
   --radius:12px;
   --gap:16px;
@@ -42,7 +42,7 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
 /* Champion card */
 #champion-card h2{ margin:0 0 8px 0; font-size:16px; }
 
-/* Champion styling - large gold button-like */
+/* Champion large gold pill */
 .champ-name{
   display:inline-block;
   background: linear-gradient(90deg,#ffdf8b,#ffd34d);
@@ -54,58 +54,25 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
   letter-spacing:0.6px;
   box-shadow: 0 6px 20px rgba(255,211,77,0.12), inset 0 -2px 0 rgba(0,0,0,0.06);
 }
+.champ-name.no-champ{ background:transparent; color:var(--muted); font-size:18px; padding:0; box-shadow:none; }
 
-/* When no champion */
-.champ-name.no-champ{
-  background:transparent;
-  color:var(--muted);
-  font-size:18px;
-  padding:0;
-  box-shadow:none;
-}
-
-/* Challenge section */
+/* Challenge / next up */
 #challenge-section h2{ margin:0 0 10px 0; font-size:16px; }
 .next-up-row{ display:flex; align-items:center; gap:12px; }
-.next-up-name{
-  font-size:30px;
-  font-weight:800;
-  color:var(--accent);
-  letter-spacing:0.4px;
-  display:inline-block;
-}
+.next-up-name{ font-size:30px; font-weight:800; color:var(--accent); letter-spacing:0.4px; display:inline-block; }
 
 /* Challenger badge */
-.challenger-badge{
-  display:inline-block;
-  background: var(--danger);
-  color: #fff;
-  font-size:12px;
-  font-weight:700;
-  padding:4px 8px;
-  border-radius:999px;
-  margin-left:8px;
-  vertical-align:middle;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
-}
+.challenger-badge{ display:inline-block; background: var(--danger); color:#fff; font-size:12px; font-weight:700; padding:4px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; box-shadow: 0 4px 10px rgba(0,0,0,0.25); }
 
 /* Timer */
 #timer-display{ font-size:14px; color:var(--muted); margin-top:6px; }
 
 /* Roster */
 #roster h2{ margin:0 0 8px 0; font-size:16px; }
-.roster-row{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:8px 6px;
-  border-radius:8px;
-  margin-bottom:8px;
-  background:var(--glass);
-}
+.roster-row{ display:flex; align-items:center; gap:8px; padding:8px 6px; border-radius:8px; margin-bottom:8px; background:var(--glass); }
 .order-handle{ width:28px; text-align:center; color:var(--muted); cursor:grab; user-select:none; }
 
-/* Roster name styled like a button when interactive (restore original look) */
+/* Roster name button-like */
 .roster-name{
   flex:1;
   text-align:left;
@@ -118,7 +85,7 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
   cursor:pointer;
 }
 
-/* Active challenger (next up) style = blue button */
+/* Next-up challenger = blue */
 .roster-name.challenger{
   background: linear-gradient(90deg,#4da6ff,#1f6feb);
   color:#fff;
@@ -126,7 +93,7 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
   box-shadow: 0 6px 18px rgba(31,111,235,0.12);
 }
 
-/* Lost = red button/strike-through */
+/* Lost = red */
 .roster-name.lost{
   background: linear-gradient(90deg,#ffb5b5,#ff7b7b);
   color:#fff;
@@ -136,42 +103,26 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
   box-shadow: 0 6px 18px rgba(255,75,75,0.08);
 }
 
-/* Disabled roster names (when we intentionally make them inert) */
-.roster-name[disabled]{
-  opacity:0.85;
-  cursor:not-allowed;
-}
-
-/* Move buttons */
-.move-btn, .roster-row > button{
-  background:transparent;
-  border:1px solid rgba(255,255,255,0.04);
-  color:var(--muted);
-  padding:6px 8px;
-  border-radius:6px;
-  cursor:pointer;
-}
+.roster-name[disabled]{ opacity:0.85; cursor:not-allowed; }
+.move-btn, .roster-row > button{ background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--muted); padding:6px 8px; border-radius:6px; cursor:pointer; }
 .move-btn:disabled{ opacity:0.45; cursor:not-allowed; }
 
-/* Add player */
 .add-player{ display:flex; gap:8px; align-items:center; margin-top:10px; }
 .add-player input{ flex:1; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:var(--text); }
 .add-player button{ padding:8px 12px; border-radius:8px; border:none; background:var(--accent); color:#fff; cursor:pointer; }
 .log{ margin-top:8px; color:var(--muted); font-size:13px; }
 
-/* Match history */
 .history h2{ margin:0 0 8px 0; }
 .match-desc{ color:var(--muted); font-size:13px; margin-left:18px; margin-bottom:6px; }
 
-/* Champion board */
 #champion-board-list h2{ margin:0 0 8px 0; }
 .champion-board-name{ font-weight:600; margin-right:8px; }
 .champion-board-time{ color:var(--muted); font-size:12px; }
 
-/* Confetti canvas */
 .confetti{ position:fixed; left:0; top:0; pointer-events:none; z-index:9999; }
 
-/* Responsive tweak */
+button{ font-family:inherit; cursor:pointer; }
+
 @media (max-width:900px){
   .top-row{ grid-template-columns: 1fr; }
 }
