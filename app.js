@@ -42,7 +42,7 @@ let sweepRecordedFor = null;
 
 let suppressDefeatsListener = false;
 
-// Prevent recording sweeps during the initial sync/load
+// Prevent recording sweeps during initial sync/load
 let initialDataLoaded = false;
 
 const $ = id => document.getElementById(id);
@@ -176,9 +176,15 @@ async function addChampionBoardEntry(champId, champName) {
   }
 }
 
-// ---------------------- Sweep checker (updated to immediately update UI) ----------------------
+// ---------------------- Sweep checker (guarded by initialDataLoaded) ----------------------
 async function checkForSweep(triggerContext = 'unknown') {
   try {
+    // Don't run sweep logic until after initial sync finishes
+    if (!initialDataLoaded) {
+      console.log('[checkForSweep] skipped — initial data not loaded yet');
+      return false;
+    }
+
     const normalizedOrder = playersOrderArr.map(norm).filter(id => id != null);
     const visibleIds = normalizedOrder.filter(id => id !== norm(championId) && players[id]);
     const defeatedArray = Array.from(defeated).map(norm);
@@ -191,8 +197,7 @@ async function checkForSweep(triggerContext = 'unknown') {
 
     const allDefeated = visibleIds.length > 0 && visibleIds.every(id => defeated.has(id));
     if (allDefeated) {
-      // only record sweep and add championBoard entry after initial load completes
-      if (initialDataLoaded && championId && championId !== sweepRecordedFor) {
+      if (championId && championId !== sweepRecordedFor) {
         console.log('[checkForSweep] sweep detected — recording champion locally:', championId);
         if (players[championId]) {
           await addChampionBoardEntry(championId, players[championId].name);
@@ -201,7 +206,7 @@ async function checkForSweep(triggerContext = 'unknown') {
         }
         sweepRecordedFor = championId;
       } else {
-        console.log('[checkForSweep] sweep skip (either initial load or already recorded):', championId);
+        console.log('[checkForSweep] sweep already recorded locally for', championId);
       }
 
       await setTimerEnd(null);
@@ -743,7 +748,12 @@ onValue(ref(db, 'playersOrder'), snap => {
 
 onValue(ref(db, 'championId'), snap => {
   const newChampionId = snap.val();
-  championId = norm(newChampionId);
+  const normalized = norm(newChampionId);
+  // If champion changed, clear the local recorded-sweep lock so new sweeps can record later
+  if (normalized !== championId) {
+    sweepRecordedFor = null;
+  }
+  championId = normalized;
   if (championId && defeated.has(championId)) defeated.delete(championId);
   if (!championId) {
     isPendingState = true;
@@ -797,12 +807,11 @@ onValue(ref(db, 'timer/endTimestamp'), snap => {
     console.log('Initial DB root', root.val());
     log('Connected to Firebase');
     // Allow initial snapshot processing to complete before enabling sweep recordings
-    // (gives other listeners a chance to run their initial onValue handlers)
+    // small delay ensures onValue initial handlers run first
     setTimeout(() => { initialDataLoaded = true; console.log('initialDataLoaded = true'); }, 250);
   } catch (e) {
     console.error('Firebase connectivity test failed', e);
     log('Firebase connect failed: ' + e.message);
-    // still flip the flag after a short delay to avoid blocking forever
     setTimeout(() => { initialDataLoaded = true; console.log('initialDataLoaded = true (connect failed fallback)'); }, 250);
   }
 })();
