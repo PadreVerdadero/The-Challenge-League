@@ -1,42 +1,44 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Challenge League</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="style.css" />
-  <script type="module" src="app.js" defer></script>
+  <title>Challenge League</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <h1>🏆 Challenge League</h1>
+  <main class="container">
+    <header>
+      <h1>Challenge League</h1>
+    </header>
 
-  <section id="champion-card"></section>
+    <section class="top-row">
+      <aside class="left-col">
+        <div id="champion-card" class="card"></div>
+        <div id="challenge-section" class="card"></div>
+      </aside>
 
-  <section id="timer-section">
-    <h2>Challenge Timer</h2>
-    <div id="timer-display">No active challenge</div>
-    <div id="timer-controls"></div>
-  </section>
+      <section class="middle-col">
+        <div id="roster" class="card"></div>
 
-  <section id="roster"></section>
+        <div class="card add-player">
+          <input id="new-player-name" type="text" placeholder="New player name" />
+          <button id="add-player-button">Add Player</button>
+          <div id="add-player-log" class="log" aria-live="polite"></div>
+        </div>
 
-  <section id="add-player-form">
-    <h2>Add a New Player</h2>
-    <input id="new-player-name" placeholder="Player name" />
-    <button id="add-player-button">Add Player</button>
-    <div id="add-player-log" aria-live="polite"></div>
-  </section>
+        <div id="match-list" class="card history"></div>
+      </section>
 
-  <section id="match-history">
-    <h2>Match History</h2>
-    <div id="match-list"></div>
-  </section>
+      <aside class="right-col">
+        <div id="champion-board-list" class="card"></div>
+      </aside>
+    </section>
 
-  <section id="champion-board">
-    <h2>Champion Board</h2>
-    <div id="champion-board-list"></div>
-  </section>
+    <canvas id="confetti-canvas" class="confetti" aria-hidden="true"></canvas>
+  </main>
 
-  <canvas id="confetti-canvas"></canvas>
+  <!-- The app.js script should be loaded last -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>
