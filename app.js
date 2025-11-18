@@ -450,29 +450,25 @@ function renderChampion() {
   renderChampionActions();
 }
 
-// Updated renderChampionActions: only show button in pending or no-champion states
+// Updated renderChampionActions: only show button in pending (with a current champion) or no-champion states
 function renderChampionActions() {
   const area = $('champion-actions-area');
   if (!area) return;
   area.innerHTML = '';
 
-  // Show the action button only when a new group challenge is pending OR there is no champion
-  if (isPendingState) {
+  // Show the Assign button only when a new group challenge is pending AND there is a current champion
+  if (isPendingState && championId) {
     const btn = document.createElement('button');
     btn.textContent = 'Assign Champion';
     btn.title = 'Automatically remove current champion so order can be locked';
     btn.addEventListener('click', async () => {
-      // Action: remove current champion (same as choosing Remove current champion)
-      // Move current champion to back of queue and set championId to null (No champion yet)
       const prev = championId;
       if (prev) {
-        // move prev to back of order (client-side)
         const prevIdx = playersOrderArr.indexOf(prev);
         if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); }
         playersOrderArr.push(prev);
         await savePlayersOrder();
       }
-      // Clear champion in DB and set pending state (No champion yet)
       await set(ref(db, 'championId'), null);
       championId = null;
       isPendingState = true;
@@ -482,17 +478,16 @@ function renderChampionActions() {
       renderRoster();
     });
     area.appendChild(btn);
+
+  // When no champion: show Lock in Order button that picks the first player as champion
   } else if (!championId) {
-    // No champion currently: show Lock in Order button that picks the first player as champion
     const btn = document.createElement('button');
     btn.textContent = 'Lock in Order';
     btn.title = 'Select first player in order as champion (locks order while champion active)';
     btn.addEventListener('click', async () => {
-      // pick the first player in playersOrderArr (or fallback)
       const ordered = playersOrderArr.length ? playersOrderArr : Object.keys(players).sort();
       const pick = ordered.find(id => id && players[id]) || null;
       if (!pick) { alert('No players to select as champion'); return; }
-      // Clear defeats and set champion
       await clearAllDefeats();
       await removeDefeat(pick);
       await set(ref(db, 'championId'), pick);
@@ -506,8 +501,6 @@ function renderChampionActions() {
     });
     area.appendChild(btn);
   }
-
-  // When not in these modes, no action button is displayed
 }
 
 function renderRoster() {
@@ -531,8 +524,7 @@ function renderRoster() {
 
     row.append(handle, nameBtn);
 
-    // Move buttons are only enabled when we are allowed to change order:
-    // allowed when isPendingState is true OR there is no champion (locking stage)
+    // Move buttons enabled only when editing is allowed (pending or no champion)
     const orderEditable = (isPendingState || !championId);
 
     if (visibleIds.length > 1) {
@@ -720,7 +712,7 @@ function triggerConfetti() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   const parts = [];
-  const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a493'];
+  const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'];
   for (let i=0;i<80;i++) {
     parts.push({x: Math.random()*canvas.width, y: -50 - Math.random()*200, vx: (Math.random()-0.5)*6, vy: 2 + Math.random()*6, size: 6 + Math.random()*8, c: colors[Math.floor(Math.random()*colors.length)], life:0});
   }
