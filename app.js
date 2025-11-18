@@ -217,7 +217,7 @@ async function checkForSweep(triggerContext = 'unknown') {
       await setTimerEnd(null);
       isPendingState = true;
 
-      renderChallengeSection(); // ensure UI updates for Next Up / timer
+      renderChallengeSection();
       renderChampion();
       renderRoster();
 
@@ -442,7 +442,6 @@ async function handleTimerExpiry() {
 
 // ---------------------- Rendering ----------------------
 
-// Renders the champion card and actions (unchanged)
 function renderChampion() {
   const el = $('champion-card');
   if (!el) return;
@@ -457,7 +456,6 @@ function renderChampion() {
   renderChampionActions();
 }
 
-// Existing champion actions logic (Assign / Lock in Order)
 function renderChampionActions() {
   const area = $('champion-actions-area');
   if (!area) return;
@@ -520,7 +518,6 @@ function renderChallengeSection() {
   const nextUpId = ordered.find(id => id && id !== championId && players[id]) || null;
   const nextUpName = nextUpId ? (players[nextUpId]?.name || 'Unknown') : 'No one';
 
-  // Build the HTML: big silver name, timer underneath, and challenge button
   el.innerHTML = '';
   const title = document.createElement('h2');
   title.textContent = 'Challenge';
@@ -528,35 +525,32 @@ function renderChallengeSection() {
 
   const nextRow = document.createElement('div');
   nextRow.className = 'next-up-row';
+  nextRow.style.display = 'flex';
+  nextRow.style.alignItems = 'center';
+  nextRow.style.gap = '12px';
 
   const nameWrap = document.createElement('div');
   nameWrap.className = 'next-up-name';
   nameWrap.textContent = nextUpName;
-  // style with inline so it works without additional CSS edits
   nameWrap.style.fontSize = '28px';
   nameWrap.style.fontWeight = '700';
   nameWrap.style.color = 'silver';
-  nameWrap.style.marginRight = '12px';
   nameWrap.style.display = 'inline-block';
 
   nextRow.appendChild(nameWrap);
 
-  // If there's someone next up, show the challenge entry button
   const btn = document.createElement('button');
   btn.textContent = 'Record Challenge';
   btn.title = 'Record a challenge for the Next Up player';
-  btn.disabled = !nextUpId || !championId; // disable if no challenger or no champion
-  btn.addEventListener('click', async () => {
-    if (!nextUpId) { alert('No Next Up player'); return; }
-    // Use the same challenge flow as the previous handleRosterClick prompts,
-    // but targeting nextUpId as challenger.
-    await promptAndRecordChallenge(nextUpId);
+  btn.disabled = !nextUpId || !championId;
+  btn.addEventListener('click', () => {
+    if (!nextUpId) return;
+    openChallengeModal(nextUpId);
   });
   nextRow.appendChild(btn);
 
   el.appendChild(nextRow);
 
-  // Timer display under the Next Up
   const timerWrap = document.createElement('div');
   timerWrap.className = 'next-up-timer';
   timerWrap.style.marginTop = '8px';
@@ -567,11 +561,10 @@ function renderChallengeSection() {
   timerWrap.appendChild(timerText);
   el.appendChild(timerWrap);
 
-  // Ensure timer display and other parts are updated
   updateTimerDisplay();
 }
 
-// Modify roster rendering so clicking names does NOT trigger prompts (no challenge entry from roster)
+// Modify roster rendering so clicking names does NOT trigger prompts
 function renderRoster() {
   const roster = $('roster');
   if (!roster) return;
@@ -579,7 +572,6 @@ function renderRoster() {
   if (!players || Object.keys(players).length === 0) { roster.innerHTML += '<p>No players yet</p>'; return; }
 
   const orderedIds = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
-  // We still display the full roster excluding champion (Next Up is displayed separately)
   const visibleIds = orderedIds.filter(id => id !== championId && players[id]);
 
   visibleIds.forEach((id, position) => {
@@ -590,7 +582,6 @@ function renderRoster() {
     const handle = document.createElement('div'); handle.className = 'order-handle'; handle.textContent = '☰';
     const nameBtn = document.createElement('button'); nameBtn.className = 'roster-name'; nameBtn.textContent = p.name; nameBtn.dataset.id = id;
 
-    // Remove prompt behavior here — clicking roster names does nothing now
     nameBtn.disabled = true;
     nameBtn.title = 'Use the Challenge panel to record a challenge for Next Up';
 
@@ -651,41 +642,133 @@ function renderChampionBoard() {
   });
 }
 
-// ---------------------- Challenge entry flow (centralized for Next Up) ----------------------
+// ---------------------- Challenge modal / entry flow ----------------------
 
-// Prompt + record flow that used to be triggered by clicking roster names.
-// Now used only by the Next Up "Record Challenge" button.
-// This reuses the same logic as the old handleRosterClick flow.
-async function promptAndRecordChallenge(challengerId) {
-  const p = players[challengerId];
-  if (!p) { alert('Challenger not found'); return; }
-  if (!championId) { alert('No champion set'); return; }
+// Creates and shows modal; modal handles description and winner selection via buttons
+function openChallengeModal(challengerId) {
+  const challenger = players[challengerId];
+  if (!challenger || !championId) return;
 
-  // description prompt
-  const desc = prompt(`Describe the challenge between ${p.name} and ${players[championId].name}:`);
-  if (desc === null) {
-    console.log('Challenge description cancelled; aborting flow, no timer change.');
-    return;
+  // If a modal already exists, don't open another
+  if ($('challenge-modal')) return;
+
+  const modal = document.createElement('div');
+  modal.id = 'challenge-modal';
+  modal.style.position = 'fixed';
+  modal.style.left = '0';
+  modal.style.top = '0';
+  modal.style.width = '100%';
+  modal.style.height = '100%';
+  modal.style.display = 'flex';
+  modal.style.alignItems = 'center';
+  modal.style.justifyContent = 'center';
+  modal.style.background = 'rgba(0,0,0,0.5)';
+  modal.style.zIndex = 10000;
+
+  const panel = document.createElement('div');
+  panel.style.background = '#fff';
+  panel.style.padding = '16px';
+  panel.style.borderRadius = '8px';
+  panel.style.minWidth = '320px';
+  panel.style.maxWidth = '520px';
+  panel.style.boxShadow = '0 6px 24px rgba(0,0,0,0.3)';
+
+  const header = document.createElement('h3');
+  header.textContent = `Record Challenge: ${challenger.name} vs ${players[championId].name}`;
+  header.style.marginTop = '0';
+  panel.appendChild(header);
+
+  const descLabel = document.createElement('label');
+  descLabel.textContent = 'Description';
+  descLabel.style.display = 'block';
+  descLabel.style.marginBottom = '6px';
+  panel.appendChild(descLabel);
+
+  const descArea = document.createElement('textarea');
+  descArea.id = 'challenge-desc';
+  descArea.rows = 4;
+  descArea.style.width = '100%';
+  descArea.style.boxSizing = 'border-box';
+  descArea.placeholder = 'Short description of the match...';
+  panel.appendChild(descArea);
+
+  const buttonsRow = document.createElement('div');
+  buttonsRow.style.display = 'flex';
+  buttonsRow.style.gap = '8px';
+  buttonsRow.style.marginTop = '12px';
+  buttonsRow.style.justifyContent = 'space-between';
+
+  const leftCol = document.createElement('div');
+  leftCol.style.display = 'flex';
+  leftCol.style.gap = '8px';
+
+  const nextUpBtn = document.createElement('button');
+  nextUpBtn.textContent = `${challenger.name} wins`;
+  nextUpBtn.style.background = '#2b8a3e';
+  nextUpBtn.style.color = '#fff';
+  nextUpBtn.style.padding = '8px 12px';
+  nextUpBtn.style.border = 'none';
+  nextUpBtn.style.borderRadius = '4px';
+  nextUpBtn.addEventListener('click', async () => {
+    const desc = descArea.value || '';
+    await submitChallengeForm(challengerId, challenger.name, desc, challengerId);
+    closeChallengeModal();
+  });
+
+  const champBtn = document.createElement('button');
+  champBtn.textContent = `${players[championId].name} wins`;
+  champBtn.style.background = '#1f6feb';
+  champBtn.style.color = '#fff';
+  champBtn.style.padding = '8px 12px';
+  champBtn.style.border = 'none';
+  champBtn.style.borderRadius = '4px';
+  champBtn.addEventListener('click', async () => {
+    const desc = descArea.value || '';
+    await submitChallengeForm(challengerId, challenger.name, desc, championId);
+    closeChallengeModal();
+  });
+
+  leftCol.appendChild(nextUpBtn);
+  leftCol.appendChild(champBtn);
+
+  const rightCol = document.createElement('div');
+  rightCol.style.display = 'flex';
+  rightCol.style.gap = '8px';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.padding = '8px 12px';
+  cancelBtn.style.border = '1px solid #ccc';
+  cancelBtn.style.borderRadius = '4px';
+  cancelBtn.addEventListener('click', () => {
+    closeChallengeModal();
+  });
+
+  rightCol.appendChild(cancelBtn);
+
+  buttonsRow.appendChild(leftCol);
+  buttonsRow.appendChild(rightCol);
+
+  panel.appendChild(buttonsRow);
+  modal.appendChild(panel);
+  document.body.appendChild(modal);
+
+  function closeChallengeModal() {
+    const m = $('challenge-modal');
+    if (m) m.remove();
   }
+}
 
-  // winner prompt (keeps old behavior)
-  const winnerName = prompt(`Who won? Type exactly: "${p.name}" or "${players[championId].name}"`);
-  if (winnerName === null) {
-    console.log('Winner prompt cancelled; aborting flow, no timer change.');
-    return;
-  }
-
-  const winnerId = (winnerName === p.name) ? challengerId : championId;
-  const winnerDisplay = (winnerName === p.name) ? p.name : players[championId].name;
-
+// Submits the match using the same logic as old prompt flow
+async function submitChallengeForm(challengerId, challengerName, description, winnerId) {
   const match = {
-    challengerId: challengerId,
-    challengerName: p.name,
+    challengerId,
+    challengerName,
     championId,
-    championName: players[championId].name,
+    championName: players[championId]?.name || 'Champion',
     winnerId,
-    winnerName: winnerDisplay,
-    description: desc || '',
+    winnerName: winnerId === challengerId ? challengerName : players[championId]?.name || 'Champion',
+    description: description || '',
     timestamp: Date.now()
   };
 
@@ -720,7 +803,7 @@ async function promptAndRecordChallenge(challengerId) {
         defeated.delete(challengerId);
 
         triggerConfetti();
-        log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
+        log(`${players[challengerId].name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
         renderChampion();
         renderRoster();
 
@@ -739,7 +822,7 @@ async function promptAndRecordChallenge(challengerId) {
       const idx = playersOrderArr.indexOf(challengerId);
       if (idx !== -1) { playersOrderArr.splice(idx,1); playersOrderArr.push(challengerId); } else playersOrderArr.push(challengerId);
       await savePlayersOrder();
-      log(`${p.name} lost to ${players[championId].name}`);
+      log(`${players[challengerId].name} lost to ${players[championId].name}`);
     }
 
     if (!playersOrderArr.includes(challengerId)) { playersOrderArr.push(challengerId); await savePlayersOrder(); }
@@ -762,7 +845,7 @@ function triggerConfetti() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   const parts = [];
-  const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a493'];
+  const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'];
   for (let i=0;i<80;i++) {
     parts.push({x: Math.random()*canvas.width, y: -50 - Math.random()*200, vx: (Math.random()-0.5)*6, vy: 2 + Math.random()*6, size: 6 + Math.random()*8, c: colors[Math.floor(Math.random()*colors.length)], life:0});
   }
@@ -886,7 +969,7 @@ onValue(ref(db, 'timer/endTimestamp'), snap => {
   try { const root = await get(ref(db, '/')); console.log('Initial DB root', root.val()); log('Connected to Firebase'); } catch (e) { console.error('Firebase connectivity test failed', e); log('Firebase connect failed: ' + e.message); }
 })();
 
-// Wire initial UI mounts (in case DOM already has these containers)
+// Wire initial UI mounts
 document.addEventListener('DOMContentLoaded', () => {
   renderChampion();
   renderRoster();
