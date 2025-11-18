@@ -42,13 +42,27 @@ let sweepRecordedFor = null;
 
 let suppressDefeatsListener = false;
 
-// Prevent recording sweeps during initial sync/load
+// More robust initial-load gating:
+// we'll mark each important node as "loaded" on its first onValue callback.
+// Only after all required nodes report in do we allow sweep recordings.
+const initialNodes = ['players','playersOrder','championId','defeats','championBoard','timer/endTimestamp'];
+const initialLoaded = new Set();
 let initialDataLoaded = false;
 
 const $ = id => document.getElementById(id);
 function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg; console.log(msg); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function norm(id){ return id == null ? id : String(id); }
+
+function markInitialNodeLoaded(name) {
+  if (initialDataLoaded) return;
+  initialLoaded.add(name);
+  console.log('[init] node loaded:', name, initialLoaded.size, '/', initialNodes.length);
+  if (initialLoaded.size >= initialNodes.length) {
+    initialDataLoaded = true;
+    console.log('[init] initialDataLoaded = true');
+  }
+}
 
 // ---------------------- Helpers ----------------------
 async function persistDefeat(id) {
@@ -136,7 +150,7 @@ async function addChampionBoardEntry(champId, champName) {
   try {
     const now = Date.now();
 
-    // 1) Check durable last-sweep marker in DB
+    // 1) Check durable last-sweep marker in DB (prevents re-adding same champion within debounce window)
     const last = await getLastSweep();
     if (last && last.id === champId) {
       if ((now - (last.timestamp || 0)) < CHAMPION_BOARD_DEBOUNCE_MS) {
@@ -734,6 +748,7 @@ onValue(ref(db, 'players'), snap => {
   allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
   playersOrderArr = playersOrderArr.filter(pid => allIds.includes(pid));
   renderRoster();
+  markInitialNodeLoaded('players');
 });
 
 onValue(ref(db, 'playersOrder'), snap => {
@@ -744,6 +759,7 @@ onValue(ref(db, 'playersOrder'), snap => {
   allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
   playersOrderArr = playersOrderArr.filter(pid => allIds.includes(pid));
   renderRoster();
+  markInitialNodeLoaded('playersOrder');
 });
 
 onValue(ref(db, 'championId'), snap => {
@@ -761,15 +777,16 @@ onValue(ref(db, 'championId'), snap => {
   }
   renderChampion();
   renderRoster();
+  markInitialNodeLoaded('championId');
 });
 
 onValue(ref(db, 'matches'), snap => {
   const val = snap.val() || {};
   matches = Object.values(val);
   renderMatchHistory();
+  // not required for initial sweep gating
 });
 
-// defeats listener respects suppress flag
 onValue(ref(db, 'defeats'), async snap => {
   if (suppressDefeatsListener) {
     console.log('[defeats listener] suppressed');
@@ -779,6 +796,7 @@ onValue(ref(db, 'defeats'), async snap => {
   defeated = new Set(Object.keys(val).map(norm));
   if (championId && defeated.has(championId)) defeated.delete(championId);
   renderRoster();
+  markInitialNodeLoaded('defeats');
   checkForSweep('defeats:db-snapshot');
 });
 
@@ -786,6 +804,7 @@ onValue(ref(db, 'championBoard'), snap => {
   const val = snap.val() || {};
   championBoard = Object.values(val);
   renderChampionBoard();
+  markInitialNodeLoaded('championBoard');
 });
 
 onValue(ref(db, 'timer/endTimestamp'), snap => {
@@ -798,20 +817,17 @@ onValue(ref(db, 'timer/endTimestamp'), snap => {
     clearLocalInterval();
     updateTimerDisplay();
   }
+  markInitialNodeLoaded('timer/endTimestamp');
 });
 
-// Connectivity check and mark initial data loaded afterward
+// Connectivity check (kept for logging but not used to gate initialDataLoaded now)
 (async function testConn(){
   try {
     const root = await get(ref(db, '/'));
     console.log('Initial DB root', root.val());
     log('Connected to Firebase');
-    // Allow initial snapshot processing to complete before enabling sweep recordings
-    // small delay ensures onValue initial handlers run first
-    setTimeout(() => { initialDataLoaded = true; console.log('initialDataLoaded = true'); }, 250);
   } catch (e) {
     console.error('Firebase connectivity test failed', e);
     log('Firebase connect failed: ' + e.message);
-    setTimeout(() => { initialDataLoaded = true; console.log('initialDataLoaded = true (connect failed fallback)'); }, 250);
   }
 })();
