@@ -447,7 +447,6 @@ function renderChampion() {
   if (!el) return;
   const champ = players[championId];
 
-  // If no champion, use a muted placeholder
   if (champ) {
     el.innerHTML = `
       <h2>Champion</h2>
@@ -615,7 +614,6 @@ function renderRoster() {
       if (id === nextUpId) {
         openChallengeModal(id);
       } else {
-        // small info pop (non-blocking) — you can change this behavior if you want it inert
         alert(`${p.name}\n\nStatus: ${defeated.has(id) ? 'Lost this round' : 'Waiting in queue'}`);
       }
     });
