@@ -1,25 +1,84 @@
+:root{
+  --bg:#071027;
+  --card:#0b1220;
+  --muted:#98a0b3;
+  --accent:#1f6feb;
+  --success:#2b8a3e;
+  --danger:#ff6b6b;
+  --glass: rgba(255,255,255,0.03);
+  --radius:12px;
+  --gap:16px;
+  --text:#e6eef8;
+}
+
+/* Basic reset */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:Inter,Segoe UI,system-ui,Helvetica,Arial,sans-serif;
+  background: linear-gradient(180deg,#071027 0%, #071a2b 100%);
+  color:var(--text);
+  padding:20px;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+.container{
+  max-width:1200px;
+  margin:0 auto;
+}
+
+header h1{
+  margin:0 0 18px 0;
+  font-size:20px;
+  color:var(--text);
+}
+
+/* Layout */
+.top-row{
+  display:grid;
+  grid-template-columns: 300px 1fr 260px;
+  gap:var(--gap);
+  align-items:start;
+}
+
+/* Cards */
+.card{
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius:var(--radius);
+  padding:14px;
+  box-shadow: 0 6px 18px rgba(3,6,12,0.5);
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+/* Champion card */
+#champion-card h2{ margin:0 0 8px 0; font-size:16px; }
+
 /* Champion styling - bigger and gold */
 .champ-name{
   font-weight:800;
-  color:#ffd34d;    /* gold */
-  font-size:28px;   /* bigger */
+  color:#ffd34d;
+  font-size:28px;
   letter-spacing:0.6px;
   display:inline-block;
   margin-right:8px;
 }
 
-/* Next Up / Challenger styles */
+/* Challenge section */
+#challenge-section h2{ margin:0 0 10px 0; font-size:16px; }
+.next-up-row{ display:flex; align-items:center; gap:12px; }
 .next-up-name{
   font-size:30px;
   font-weight:800;
-  color:#4da6ff;  /* bright blue for challenger name */
+  color:#4da6ff;
   letter-spacing:0.6px;
 }
 
 /* Challenger badge */
 .challenger-badge{
   display:inline-block;
-  background: #ff4757; /* red badge */
+  background: #ff4757;
   color: #fff;
   font-size:12px;
   font-weight:700;
@@ -30,21 +89,95 @@
   box-shadow: 0 4px 10px rgba(0,0,0,0.25);
 }
 
-/* Roster colors */
+/* Timer */
+#timer-display{
+  font-size:14px;
+  color:var(--muted);
+}
+
+/* Roster */
+#roster h2{ margin:0 0 8px 0; font-size:16px; }
+.roster-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 6px;
+  border-radius:8px;
+  margin-bottom:8px;
+  background:var(--glass);
+}
+.order-handle{ width:28px; text-align:center; color:var(--muted); cursor:grab; user-select:none; }
+
+/* Roster name base */
+.roster-name{
+  flex:1;
+  text-align:left;
+  background:transparent;
+  border:none;
+  color:var(--text);
+  font-size:15px;
+  padding:4px 8px;
+  border-radius:6px;
+}
+
+/* Lost = red */
 .roster-name.lost{
-  color:#ff6b6b; /* red for lost */
+  color:var(--danger);
   text-decoration:line-through;
   opacity:0.95;
 }
 
+/* Next-up challenger in roster = blue, bold */
 .roster-name.challenger{
-  color:#4da6ff; /* blue for current Next Up challenger */
+  color:#4da6ff;
   font-weight:700;
 }
 
-/* Restore red/blue affordance for action buttons if needed */
-.move-btn.win { background:#2b8a3e; color:#fff; border:none; }
-.move-btn.lose { background:#d9534f; color:#fff; border:none; }
+/* Move buttons */
+.move-btn, .roster-row > button{
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.04);
+  color:var(--muted);
+  padding:6px 8px;
+  border-radius:6px;
+  cursor:pointer;
+}
+.move-btn:disabled{ opacity:0.45; cursor:not-allowed; }
 
-/* Modal tweaks (optional) */
-#challenge-modal .modal-panel { max-width:560px; }
+/* Add player */
+.add-player{ display:flex; gap:8px; align-items:center; margin-top:10px; }
+.add-player input{ flex:1; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:var(--text); }
+.add-player button{ padding:8px 12px; border-radius:8px; border:none; background:var(--accent); color:#fff; cursor:pointer; }
+.log{ margin-top:8px; color:var(--muted); font-size:13px; }
+
+/* Match history */
+.history h2{ margin:0 0 8px 0; }
+.match-desc{ color:var(--muted); font-size:13px; margin-left:18px; margin-bottom:6px; }
+
+/* Champion board */
+#champion-board-list h2{ margin:0 0 8px 0; }
+.champion-board-name{ font-weight:600; margin-right:8px; }
+.champion-board-time{ color:var(--muted); font-size:12px; }
+
+/* Confetti canvas */
+.confetti{
+  position:fixed;
+  left:0;
+  top:0;
+  pointer-events:none;
+  z-index:9999;
+}
+
+/* Modal helper classes (used by inline JS styles too) */
+#challenge-modal .modal-panel{ max-width:560px; }
+
+/* Buttons default */
+button{ font-family:inherit; cursor:pointer; }
+
+/* Small responsive tweak */
+@media (max-width:900px){
+  .top-row{ grid-template-columns: 1fr; }
+  .right-col{ order:3; }
+  .left-col{ order:1; }
+  .middle-col{ order:2; }
+}
