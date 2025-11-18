@@ -27,31 +27,24 @@ const db = getDatabase(app);
 // App state
 let players = {};
 let championId = null;
-let matches = []; // array of match objects (driven from DB)
+let matches = [];
 let defeated = new Set();
 let playersOrderArr = [];
-let timerEnd = null; // ms timestamp or null
+let timerEnd = null;
 let timerInterval = null;
 let processingExpiry = false;
 
-// pending mode flags
-let isPendingState = false; // true when "New group challenge pending" should show
-let pendingAnimPlaying = false; // to avoid replaying animation repeatedly
+let isPendingState = false;
+let pendingAnimPlaying = false;
 
-// champion board local
-let championBoard = []; // array of { id, name, timestamp }
+let championBoard = [];
+let sweepRecordedFor = null;
 
-// local sweep lock to avoid duplicate local writes
-let sweepRecordedFor = null; // prevents double-writing champion board
-
-// suppression flag for defeats listener to avoid stale snapshot flashes during dethrone sequence
 let suppressDefeatsListener = false;
 
 const $ = id => document.getElementById(id);
 function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg; console.log(msg); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-// normalize id values to strings used in players keys
 function norm(id){ return id == null ? id : String(id); }
 
 // ---------------------- Helpers ----------------------
@@ -103,7 +96,6 @@ async function savePlayersOrder() {
   }
 }
 
-// writeMatch persists a match to DB (caller should only call when ready)
 async function writeMatch(match) {
   try {
     const mRef = push(ref(db, 'matches'));
@@ -119,7 +111,7 @@ async function writeMatch(match) {
 async function getLastSweep() {
   try {
     const snap = await get(ref(db, 'sweep/last'));
-    return snap.val() || null; // { id: 'champId', timestamp: 1234567890 } or null
+    return snap.val() || null;
   } catch (e) {
     console.error('getLastSweep failed', e);
     return null;
@@ -135,14 +127,11 @@ async function setLastSweep(champId, ts) {
   }
 }
 
-// ---------------------- Champion Board write (durable guard + debounce) ----------------------
 const CHAMPION_BOARD_DEBOUNCE_MS = 5000;
 
 async function addChampionBoardEntry(champId, champName) {
   try {
     const now = Date.now();
-
-    // 1) Check durable last-sweep marker in DB
     const last = await getLastSweep();
     if (last && last.id === champId) {
       if ((now - (last.timestamp || 0)) < CHAMPION_BOARD_DEBOUNCE_MS) {
@@ -151,7 +140,6 @@ async function addChampionBoardEntry(champId, champName) {
       }
     }
 
-    // 2) Read latest championBoard entry (defensive)
     const snap = await get(ref(db, 'championBoard'));
     const val = snap.val() || {};
     const entries = Object.values(val);
@@ -169,20 +157,17 @@ async function addChampionBoardEntry(champId, champName) {
       return;
     }
 
-    // 3) Safe to push new entry and set durable marker
     const entry = { id: champId, name: champName, timestamp: now };
     const bRef = push(ref(db, 'championBoard'));
     await set(bRef, entry);
     console.log('Champion Board entry added', entry);
-
-    // 4) Persist durable marker of this sweep
     await setLastSweep(champId, now);
   } catch (e) {
     console.error('addChampionBoardEntry failed', e);
   }
 }
 
-// ---------------------- Sweep checker ----------------------
+// ---------------------- Sweep checker (updated to immediately update UI) ----------------------
 async function checkForSweep(triggerContext = 'unknown') {
   try {
     const normalizedOrder = playersOrderArr.map(norm).filter(id => id != null);
@@ -211,12 +196,16 @@ async function checkForSweep(triggerContext = 'unknown') {
 
       await setTimerEnd(null);
       isPendingState = true;
+
+      // immediate UI update so Assign button appears reliably
+      renderChampion();
+      renderRoster();
+
       playExplosionAnimation(10000);
       log('All challengers defeated — new group challenge pending');
       updateTimerDisplay();
     } else {
       console.log('[checkForSweep] no sweep (allDefeated=false)');
-      // reset local lock so future sweeps by the same champion can be recorded
       sweepRecordedFor = null;
     }
     return allDefeated;
@@ -246,10 +235,7 @@ async function setTimerEnd(msTimestamp) {
 }
 
 async function startTimerOneWeek(force) {
-  if (!force) {
-    console.log('[startTimerOneWeek] called without force — ignoring');
-    return;
-  }
+  if (!force) return;
   const end = Date.now() + WEEK_MS;
   console.log('[startTimerOneWeek] forcing new timer to', end);
   await setTimerEnd(end);
@@ -420,7 +406,6 @@ async function handleTimerExpiry() {
     timestamp: Date.now()
   };
 
-  // Persist the match to DB — do NOT push it locally; onValue listener will update matches
   await writeMatch(match);
 
   renderRoster();
@@ -431,7 +416,7 @@ async function handleTimerExpiry() {
   const visibleIdsAfter = playersOrderArr.filter(id => id !== championId && players[id]);
   const allDefeatedAfter = visibleIdsAfter.length > 0 && visibleIdsAfter.every(id => defeated.has(id));
   if (!allDefeatedAfter) {
-    await startTimerOneWeek(true); // explicit forced restart only after expiry flow
+    await startTimerOneWeek(true);
   }
 }
 
@@ -450,13 +435,12 @@ function renderChampion() {
   renderChampionActions();
 }
 
-// Updated renderChampionActions: only show button in pending (with a current champion) or no-champion states
+// Show Assign only when pending AND there is a champion; show Lock in Order when no champion
 function renderChampionActions() {
   const area = $('champion-actions-area');
   if (!area) return;
   area.innerHTML = '';
 
-  // Show the Assign button only when a new group challenge is pending AND there is a current champion
   if (isPendingState && championId) {
     const btn = document.createElement('button');
     btn.textContent = 'Assign Champion';
@@ -479,7 +463,6 @@ function renderChampionActions() {
     });
     area.appendChild(btn);
 
-  // When no champion: show Lock in Order button that picks the first player as champion
   } else if (!championId) {
     const btn = document.createElement('button');
     btn.textContent = 'Lock in Order';
@@ -524,7 +507,6 @@ function renderRoster() {
 
     row.append(handle, nameBtn);
 
-    // Move buttons enabled only when editing is allowed (pending or no champion)
     const orderEditable = (isPendingState || !championId);
 
     if (visibleIds.length > 1) {
@@ -558,7 +540,6 @@ function renderMatchHistory() {
   });
 }
 
-// Render Champion Board
 function renderChampionBoard() {
   const el = $('champion-board-list');
   if (!el) return;
@@ -623,24 +604,18 @@ async function handleRosterClick(id) {
   };
 
   try {
-    // Persist match to DB; onValue listener will refresh matches
     await writeMatch(match);
-
-    // Restart timer explicitly because a match was recorded
     await startTimerOneWeek(true);
 
     if (winnerId === id) {
       const prevChampion = championId;
 
-      // Suppress defeats listener while we perform multiple DB writes to avoid showing a stale snapshot
       suppressDefeatsListener = true;
       try {
-        // 1) Clear global defeats first so new champion starts fresh
         await remove(ref(db, 'defeats'));
         defeated = new Set();
         renderRoster();
 
-        // 2) Move previous champion to back of queue
         if (prevChampion && prevChampion !== id) {
           const prevIdx = playersOrderArr.indexOf(prevChampion);
           if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); }
@@ -648,34 +623,24 @@ async function handleRosterClick(id) {
           await savePlayersOrder();
         }
 
-        // 3) Set new champion in DB first so UI knows who the champion is
         await set(ref(db, 'championId'), id);
         championId = id;
 
-        // 4) Ensure the previous champion's defeat mark is removed in DB (force remove) and locally
         if (prevChampion) {
-          try {
-            await remove(ref(db, `defeats/${prevChampion}`));
-          } catch (e) {
-            console.warn('remove defeat DB write failed for prevChampion', prevChampion, e);
-          }
+          try { await remove(ref(db, `defeats/${prevChampion}`)); } catch (e) { console.warn('remove prev defeat failed', e); }
           defeated.delete(prevChampion);
         }
 
-        // 5) Ensure the new champion is not marked defeated (DB + local)
-        try { await remove(ref(db, `defeats/${id}`)); } catch(e){ console.warn('clear new champion defeat failed', e); }
+        try { await remove(ref(db, `defeats/${id}`)); } catch(e){ console.warn('clear new champ defeat failed', e); }
         defeated.delete(id);
 
-        // 6) Visual feedback and final checks
         triggerConfetti();
         log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
         renderChampion();
         renderRoster();
 
-        // 7) Re-run sweep check after local state updated
         await checkForSweep('dethrone:entered-challenge');
 
-        // 8) Re-read defeats from DB to pick up any concurrent changes and update local state
         const snap = await get(ref(db, 'defeats'));
         const val = snap.val() || {};
         defeated = new Set(Object.keys(val).map(norm));
@@ -685,7 +650,6 @@ async function handleRosterClick(id) {
         suppressDefeatsListener = false;
       }
     } else {
-      // challenger lost: persist defeat and move them to back of queue
       await persistDefeat(id);
       const idx = playersOrderArr.indexOf(id);
       if (idx !== -1) { playersOrderArr.splice(idx,1); playersOrderArr.push(id); } else playersOrderArr.push(id);
@@ -798,7 +762,6 @@ onValue(ref(db, 'defeats'), async snap => {
   checkForSweep('defeats:db-snapshot');
 });
 
-// championBoard listener
 onValue(ref(db, 'championBoard'), snap => {
   const val = snap.val() || {};
   championBoard = Object.values(val);
