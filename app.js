@@ -42,6 +42,9 @@ let sweepRecordedFor = null;
 
 let suppressDefeatsListener = false;
 
+// Prevent recording sweeps during the initial sync/load
+let initialDataLoaded = false;
+
 const $ = id => document.getElementById(id);
 function log(msg) { const el = $('add-player-log'); if (el) el.textContent = msg; console.log(msg); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -132,6 +135,8 @@ const CHAMPION_BOARD_DEBOUNCE_MS = 5000;
 async function addChampionBoardEntry(champId, champName) {
   try {
     const now = Date.now();
+
+    // 1) Check durable last-sweep marker in DB
     const last = await getLastSweep();
     if (last && last.id === champId) {
       if ((now - (last.timestamp || 0)) < CHAMPION_BOARD_DEBOUNCE_MS) {
@@ -140,6 +145,7 @@ async function addChampionBoardEntry(champId, champName) {
       }
     }
 
+    // 2) Read latest championBoard entry (defensive)
     const snap = await get(ref(db, 'championBoard'));
     const val = snap.val() || {};
     const entries = Object.values(val);
@@ -157,10 +163,13 @@ async function addChampionBoardEntry(champId, champName) {
       return;
     }
 
+    // 3) Safe to push new entry and set durable marker
     const entry = { id: champId, name: champName, timestamp: now };
     const bRef = push(ref(db, 'championBoard'));
     await set(bRef, entry);
     console.log('Champion Board entry added', entry);
+
+    // 4) Persist durable marker of this sweep
     await setLastSweep(champId, now);
   } catch (e) {
     console.error('addChampionBoardEntry failed', e);
@@ -182,7 +191,8 @@ async function checkForSweep(triggerContext = 'unknown') {
 
     const allDefeated = visibleIds.length > 0 && visibleIds.every(id => defeated.has(id));
     if (allDefeated) {
-      if (championId && championId !== sweepRecordedFor) {
+      // only record sweep and add championBoard entry after initial load completes
+      if (initialDataLoaded && championId && championId !== sweepRecordedFor) {
         console.log('[checkForSweep] sweep detected — recording champion locally:', championId);
         if (players[championId]) {
           await addChampionBoardEntry(championId, players[championId].name);
@@ -191,7 +201,7 @@ async function checkForSweep(triggerContext = 'unknown') {
         }
         sweepRecordedFor = championId;
       } else {
-        console.log('[checkForSweep] sweep already recorded locally for', championId);
+        console.log('[checkForSweep] sweep skip (either initial load or already recorded):', championId);
       }
 
       await setTimerEnd(null);
@@ -780,7 +790,19 @@ onValue(ref(db, 'timer/endTimestamp'), snap => {
   }
 });
 
-// Connectivity check
+// Connectivity check and mark initial data loaded afterward
 (async function testConn(){
-  try { const root = await get(ref(db, '/')); console.log('Initial DB root', root.val()); log('Connected to Firebase'); } catch (e) { console.error('Firebase connectivity test failed', e); log('Firebase connect failed: ' + e.message); }
+  try {
+    const root = await get(ref(db, '/'));
+    console.log('Initial DB root', root.val());
+    log('Connected to Firebase');
+    // Allow initial snapshot processing to complete before enabling sweep recordings
+    // (gives other listeners a chance to run their initial onValue handlers)
+    setTimeout(() => { initialDataLoaded = true; console.log('initialDataLoaded = true'); }, 250);
+  } catch (e) {
+    console.error('Firebase connectivity test failed', e);
+    log('Firebase connect failed: ' + e.message);
+    // still flip the flag after a short delay to avoid blocking forever
+    setTimeout(() => { initialDataLoaded = true; console.log('initialDataLoaded = true (connect failed fallback)'); }, 250);
+  }
 })();
