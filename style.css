@@ -2,9 +2,9 @@
   --bg:#071027;
   --card:#0b1220;
   --muted:#98a0b3;
-  --accent:#1f6feb;
-  --success:#2b8a3e;
-  --danger:#ff6b6b;
+  --accent:#1f6feb;    /* blue */
+  --success:#2b8a3e;   /* green */
+  --danger:#ff4d4f;    /* red */
   --glass: rgba(255,255,255,0.03);
   --radius:12px;
   --gap:16px;
@@ -24,24 +24,11 @@ body{
   -moz-osx-font-smoothing:grayscale;
 }
 
-.container{
-  max-width:1200px;
-  margin:0 auto;
-}
-
-header h1{
-  margin:0 0 18px 0;
-  font-size:20px;
-  color:var(--text);
-}
+.container{ max-width:1200px; margin:0 auto; }
+header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
 
 /* Layout */
-.top-row{
-  display:grid;
-  grid-template-columns: 300px 1fr 260px;
-  gap:var(--gap);
-  align-items:start;
-}
+.top-row{ display:grid; grid-template-columns: 300px 1fr 260px; gap:var(--gap); align-items:start; }
 
 /* Cards */
 .card{
@@ -55,14 +42,26 @@ header h1{
 /* Champion card */
 #champion-card h2{ margin:0 0 8px 0; font-size:16px; }
 
-/* Champion styling - bigger and gold */
+/* Champion styling - large gold button-like */
 .champ-name{
-  font-weight:800;
-  color:#ffd34d;
-  font-size:28px;
-  letter-spacing:0.6px;
   display:inline-block;
-  margin-right:8px;
+  background: linear-gradient(90deg,#ffdf8b,#ffd34d);
+  color:#2b1b00;
+  padding:8px 12px;
+  border-radius:10px;
+  font-weight:900;
+  font-size:32px;
+  letter-spacing:0.6px;
+  box-shadow: 0 6px 20px rgba(255,211,77,0.12), inset 0 -2px 0 rgba(0,0,0,0.06);
+}
+
+/* When no champion */
+.champ-name.no-champ{
+  background:transparent;
+  color:var(--muted);
+  font-size:18px;
+  padding:0;
+  box-shadow:none;
 }
 
 /* Challenge section */
@@ -71,14 +70,15 @@ header h1{
 .next-up-name{
   font-size:30px;
   font-weight:800;
-  color:#4da6ff;
-  letter-spacing:0.6px;
+  color:var(--accent);
+  letter-spacing:0.4px;
+  display:inline-block;
 }
 
 /* Challenger badge */
 .challenger-badge{
   display:inline-block;
-  background: #ff4757;
+  background: var(--danger);
   color: #fff;
   font-size:12px;
   font-weight:700;
@@ -90,10 +90,7 @@ header h1{
 }
 
 /* Timer */
-#timer-display{
-  font-size:14px;
-  color:var(--muted);
-}
+#timer-display{ font-size:14px; color:var(--muted); margin-top:6px; }
 
 /* Roster */
 #roster h2{ margin:0 0 8px 0; font-size:16px; }
@@ -108,29 +105,41 @@ header h1{
 }
 .order-handle{ width:28px; text-align:center; color:var(--muted); cursor:grab; user-select:none; }
 
-/* Roster name base */
+/* Roster name styled like a button when interactive (restore original look) */
 .roster-name{
   flex:1;
   text-align:left;
-  background:transparent;
-  border:none;
+  background: linear-gradient(90deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.03);
   color:var(--text);
   font-size:15px;
-  padding:4px 8px;
-  border-radius:6px;
+  padding:8px 12px;
+  border-radius:8px;
+  cursor:pointer;
 }
 
-/* Lost = red */
-.roster-name.lost{
-  color:var(--danger);
-  text-decoration:line-through;
-  opacity:0.95;
-}
-
-/* Next-up challenger in roster = blue, bold */
+/* Active challenger (next up) style = blue button */
 .roster-name.challenger{
-  color:#4da6ff;
+  background: linear-gradient(90deg,#4da6ff,#1f6feb);
+  color:#fff;
+  font-weight:800;
+  box-shadow: 0 6px 18px rgba(31,111,235,0.12);
+}
+
+/* Lost = red button/strike-through */
+.roster-name.lost{
+  background: linear-gradient(90deg,#ffb5b5,#ff7b7b);
+  color:#fff;
   font-weight:700;
+  text-decoration:line-through;
+  opacity:0.98;
+  box-shadow: 0 6px 18px rgba(255,75,75,0.08);
+}
+
+/* Disabled roster names (when we intentionally make them inert) */
+.roster-name[disabled]{
+  opacity:0.85;
+  cursor:not-allowed;
 }
 
 /* Move buttons */
@@ -160,24 +169,9 @@ header h1{
 .champion-board-time{ color:var(--muted); font-size:12px; }
 
 /* Confetti canvas */
-.confetti{
-  position:fixed;
-  left:0;
-  top:0;
-  pointer-events:none;
-  z-index:9999;
-}
+.confetti{ position:fixed; left:0; top:0; pointer-events:none; z-index:9999; }
 
-/* Modal helper classes (used by inline JS styles too) */
-#challenge-modal .modal-panel{ max-width:560px; }
-
-/* Buttons default */
-button{ font-family:inherit; cursor:pointer; }
-
-/* Small responsive tweak */
+/* Responsive tweak */
 @media (max-width:900px){
   .top-row{ grid-template-columns: 1fr; }
-  .right-col{ order:3; }
-  .left-col{ order:1; }
-  .middle-col{ order:2; }
 }
