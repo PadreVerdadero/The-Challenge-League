@@ -446,13 +446,26 @@ function renderChampion() {
   const el = $('champion-card');
   if (!el) return;
   const champ = players[championId];
-  el.innerHTML = `
-    <h2>Champion</h2>
-    <div>
-      ${champ ? `<span class="champ-name">👑 ${escapeHtml(champ.name)}</span>` : `<span class="champ-name">No champion yet</span>`}
-      <span class="champion-actions" id="champion-actions-area"></span>
-    </div>
-  `;
+
+  // If no champion, use a muted placeholder
+  if (champ) {
+    el.innerHTML = `
+      <h2>Champion</h2>
+      <div>
+        <span class="champ-name">👑 ${escapeHtml(champ.name)}</span>
+        <span class="champion-actions" id="champion-actions-area"></span>
+      </div>
+    `;
+  } else {
+    el.innerHTML = `
+      <h2>Champion</h2>
+      <div>
+        <span class="champ-name no-champ">No champion yet</span>
+        <span class="champion-actions" id="champion-actions-area"></span>
+      </div>
+    `;
+  }
+
   renderChampionActions();
 }
 
@@ -513,7 +526,6 @@ function renderChallengeSection() {
   const el = $('challenge-section');
   if (!el) return;
 
-  // Find the Next Up: first in order that is not the champion
   const ordered = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
   const nextUpId = ordered.find(id => id && id !== championId && players[id]) || null;
   const nextUpName = nextUpId ? (players[nextUpId]?.name || 'Unknown') : 'No one';
@@ -532,11 +544,7 @@ function renderChallengeSection() {
   const nameWrap = document.createElement('div');
   nameWrap.className = 'next-up-name';
   nameWrap.textContent = nextUpName;
-  nameWrap.style.fontSize = '30px';
-  nameWrap.style.fontWeight = '800';
-  nameWrap.style.color = nextUpId ? '#4da6ff' : 'silver';
   nameWrap.style.display = 'inline-block';
-
   nextRow.appendChild(nameWrap);
 
   if (nextUpId) {
@@ -573,7 +581,7 @@ function renderChallengeSection() {
   updateTimerDisplay();
 }
 
-// Modify roster rendering so clicking names does NOT trigger prompts
+// Render roster — restore button-like colors and clickable behavior
 function renderRoster() {
   const roster = $('roster');
   if (!roster) return;
@@ -590,25 +598,29 @@ function renderRoster() {
 
     const row = document.createElement('div'); row.className = 'roster-row';
     const handle = document.createElement('div'); handle.className = 'order-handle'; handle.textContent = '☰';
-    const nameBtn = document.createElement('button'); nameBtn.className = 'roster-name'; nameBtn.textContent = p.name; nameBtn.dataset.id = id;
 
-    nameBtn.disabled = true;
-    nameBtn.title = 'Use the Challenge panel to record a challenge for Next Up';
+    const nameBtn = document.createElement('button');
+    nameBtn.className = 'roster-name';
+    nameBtn.textContent = p.name;
+    nameBtn.dataset.id = id;
 
-    if (defeated.has(id)) nameBtn.classList.add('lost'); else nameBtn.classList.remove('lost');
+    // Apply styles for challenger / lost
+    nameBtn.classList.remove('challenger','lost');
+    if (id === nextUpId) nameBtn.classList.add('challenger');
+    if (defeated.has(id)) nameBtn.classList.add('lost');
 
-    // mark Next Up visually in roster
-    if (id === nextUpId) {
-      nameBtn.classList.add('challenger');
-      const smallBadge = document.createElement('span');
-      smallBadge.className = 'challenger-badge';
-      smallBadge.textContent = 'CHALLENGER';
-      smallBadge.style.fontSize = '10px';
-      smallBadge.style.marginLeft = '8px';
-      row.append(handle, nameBtn, smallBadge);
-    } else {
-      row.append(handle, nameBtn);
-    }
+    // Clicking a roster name: open challenge modal if this is nextUp; otherwise show small info
+    nameBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (id === nextUpId) {
+        openChallengeModal(id);
+      } else {
+        // small info pop (non-blocking) — you can change this behavior if you want it inert
+        alert(`${p.name}\n\nStatus: ${defeated.has(id) ? 'Lost this round' : 'Waiting in queue'}`);
+      }
+    });
+
+    row.append(handle, nameBtn);
 
     const orderEditable = (isPendingState || !championId);
 
@@ -665,11 +677,9 @@ function renderChampionBoard() {
 
 // ---------------------- Challenge modal / entry flow ----------------------
 
-// Creates and shows modal; modal handles description and winner selection via buttons
 function openChallengeModal(challengerId) {
   const challenger = players[challengerId];
   if (!challenger || !championId) return;
-
   if ($('challenge-modal')) return;
 
   const modal = document.createElement('div');
@@ -787,7 +797,6 @@ function openChallengeModal(challengerId) {
   }
 }
 
-// Submits the match using the same logic as old prompt flow
 async function submitChallengeForm(challengerId, challengerName, description, winnerId) {
   const match = {
     challengerId,
