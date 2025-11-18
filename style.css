@@ -1,67 +1,136 @@
-body {
-  font-family: system-ui, Arial, sans-serif;
-  max-width: 900px;
-  margin: auto;
-  padding: 20px;
-  background: #f4f6f8;
+:root{
+  --bg:#0f1724;
+  --card:#0b1220;
+  --muted:#98a0b3;
+  --accent:#1f6feb;
+  --success:#2b8a3e;
+  --glass: rgba(255,255,255,0.03);
+  --radius:12px;
+  --gap:16px;
+  --text:#e6eef8;
 }
 
-h1 { text-align: center; margin-bottom: 18px; }
-
-section {
-  background: #fff;
-  padding: 14px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  margin-bottom: 18px;
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{
+  margin:0;
+  font-family:Inter,Segoe UI,system-ui,Helvetica,Arial,sans-serif;
+  background: linear-gradient(180deg,#071027 0%, #071a2b 100%);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  padding:20px;
 }
 
-button {
-  padding: 8px 12px;
-  margin: 6px 6px 6px 0;
-  border-radius: 6px;
-  border: none;
-  background: #007bff;
-  color: #fff;
-  cursor: pointer;
+.container{
+  max-width:1200px;
+  margin:0 auto;
 }
 
-button:hover { background: #0056b3; }
+header h1{
+  margin:0 0 18px 0;
+  font-size:20px;
+  letter-spacing:0.2px;
+  color:var(--text);
+}
 
-.champ-name { font-size: 1.6rem; font-weight: 800; color: #d4af37; display:inline-block; vertical-align:middle; }
+/* Layout */
+.top-row{
+  display:grid;
+  grid-template-columns: 300px 1fr 260px;
+  gap:var(--gap);
+  align-items:start;
+}
 
-.champion-actions { display:inline-block; margin-left:12px; vertical-align:middle; }
+/* Cards */
+.card{
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius:var(--radius);
+  padding:14px;
+  box-shadow: 0 6px 18px rgba(3,6,12,0.5);
+  border: 1px solid rgba(255,255,255,0.03);
+}
 
-.lost { background: #dc3545 !important; color: #fff !important; }
+/* Champion card */
+#champion-card h2{ margin:0 0 8px 0; font-size:16px; }
+.champ-name{ font-weight:700; color:#ffd86b; }
 
-#confetti-canvas { position: fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:9999; }
+/* Challenge section */
+#challenge-section h2{ margin:0 0 10px 0; font-size:16px; }
+.next-up-row{ display:flex; align-items:center; gap:12px; }
+.next-up-name{
+  font-size:28px;
+  font-weight:700;
+  color:silver;
+  letter-spacing:0.6px;
+}
+#timer-display{
+  font-size:14px;
+  color:var(--muted);
+}
 
-#add-player-log { margin-top: 8px; color: #333; font-size: 0.95rem; }
+/* Roster */
+#roster h2{ margin:0 0 8px 0; font-size:16px; }
+.roster-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 6px;
+  border-radius:8px;
+  margin-bottom:8px;
+  background:var(--glass);
+}
+.order-handle{ width:28px; text-align:center; color:var(--muted); cursor:grab; user-select:none; }
+.roster-name{
+  flex:1;
+  text-align:left;
+  background:transparent;
+  border:none;
+  color:var(--text);
+  font-size:15px;
+  padding:4px 8px;
+  border-radius:6px;
+}
+.roster-name[disabled]{ opacity:0.7; cursor:not-allowed; }
+.roster-name.lost{ text-decoration:line-through; color:#a09fb2; }
 
-#match-list div { padding: 8px 0; border-bottom:1px solid #eee; }
+/* Move buttons */
+.move-btn, .roster-row > button{
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.04);
+  color:var(--muted);
+  padding:6px 8px;
+  border-radius:6px;
+  cursor:pointer;
+}
+.move-btn:disabled{ opacity:0.45; cursor:not-allowed; }
 
-.match-desc { color:#444; font-size:0.9rem; margin-top:4px; margin-left:18px; white-space:pre-wrap; }
+/* Add player */
+.add-player{ display:flex; gap:8px; align-items:center; margin-top:10px; }
+.add-player input{ flex:1; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:var(--text); }
+.add-player button{ padding:8px 12px; border-radius:8px; border:none; background:var(--accent); color:#fff; cursor:pointer; }
+.log{ margin-top:8px; color:var(--muted); font-size:13px; }
 
-.roster-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+/* Match history */
+.history h2{ margin:0 0 8px 0; }
+.match-desc{ color:var(--muted); font-size:13px; margin-left:18px; margin-bottom:6px; }
 
-.roster-name { flex:1; text-align:left; }
+/* Champion board */
+#champion-board-list h2{ margin:0 0 8px 0; }
+.champion-board-name{ font-weight:600; margin-right:8px; }
+.champion-board-time{ color:var(--muted); font-size:12px; }
 
-.move-btn { padding:6px 8px; background:#6c757d; color:#fff; border-radius:6px; border:none; cursor:pointer; }
+/* Confetti canvas */
+.confetti{
+  position:fixed;
+  left:0;
+  top:0;
+  pointer-events:none;
+  z-index:9999;
+}
 
-.move-btn:hover { background:#5a6268; }
+/* Modal (challenge) - basic styles used by JS inline but keep helpers here */
+#challenge-modal .modal-panel{ max-width:520px; }
 
-.order-handle { cursor: grab; padding:6px; background:#e9ecef; border-radius:6px; user-select:none; }
-
-#timer-display { font-size: 1.1rem; margin-bottom:8px; }
-
-#timer-display.expired { color: #dc3545; font-weight:700; }
-
-#timer-display.pending { color: #333; font-weight:700; font-style:italic; }
-
-.champion-chooser { display:inline-block; margin-left:8px; vertical-align:middle; }
-.champion-chooser select, .champion-chooser button { margin-left:6px; }
-
-/* Champion Board */
-#champion-board-list div { padding:8px 4px; border-bottom:1px solid #efefef; font-size:0.95rem; display:flex; justify-content:space-between; align-items:center; }
-.champion-board-name { font-weight:700; color:#2c3e50; }
-.champion-board-time { font-size:0.85rem; color:#666; }
+/* Buttons used in modal created by JS */
+button{ font-family:inherit; }
