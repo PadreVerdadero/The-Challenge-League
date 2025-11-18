@@ -532,12 +532,21 @@ function renderChallengeSection() {
   const nameWrap = document.createElement('div');
   nameWrap.className = 'next-up-name';
   nameWrap.textContent = nextUpName;
-  nameWrap.style.fontSize = '28px';
-  nameWrap.style.fontWeight = '700';
-  nameWrap.style.color = 'silver';
+  nameWrap.style.fontSize = '30px';
+  nameWrap.style.fontWeight = '800';
+  nameWrap.style.color = nextUpId ? '#4da6ff' : 'silver';
   nameWrap.style.display = 'inline-block';
 
   nextRow.appendChild(nameWrap);
+
+  if (nextUpId) {
+    const badge = document.createElement('span');
+    badge.className = 'challenger-badge';
+    badge.textContent = 'CHALLENGER';
+    badge.style.fontSize = '12px';
+    badge.style.marginLeft = '6px';
+    nextRow.appendChild(badge);
+  }
 
   const btn = document.createElement('button');
   btn.textContent = 'Record Challenge';
@@ -557,7 +566,7 @@ function renderChallengeSection() {
   const timerText = document.createElement('div');
   timerText.id = 'timer-display';
   timerText.style.fontSize = '14px';
-  timerText.style.opacity = '0.9';
+  timerText.style.opacity = '0.95';
   timerWrap.appendChild(timerText);
   el.appendChild(timerWrap);
 
@@ -572,6 +581,7 @@ function renderRoster() {
   if (!players || Object.keys(players).length === 0) { roster.innerHTML += '<p>No players yet</p>'; return; }
 
   const orderedIds = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
+  const nextUpId = orderedIds.find(id => id && id !== championId && players[id]) || null;
   const visibleIds = orderedIds.filter(id => id !== championId && players[id]);
 
   visibleIds.forEach((id, position) => {
@@ -587,7 +597,18 @@ function renderRoster() {
 
     if (defeated.has(id)) nameBtn.classList.add('lost'); else nameBtn.classList.remove('lost');
 
-    row.append(handle, nameBtn);
+    // mark Next Up visually in roster
+    if (id === nextUpId) {
+      nameBtn.classList.add('challenger');
+      const smallBadge = document.createElement('span');
+      smallBadge.className = 'challenger-badge';
+      smallBadge.textContent = 'CHALLENGER';
+      smallBadge.style.fontSize = '10px';
+      smallBadge.style.marginLeft = '8px';
+      row.append(handle, nameBtn, smallBadge);
+    } else {
+      row.append(handle, nameBtn);
+    }
 
     const orderEditable = (isPendingState || !championId);
 
@@ -649,7 +670,6 @@ function openChallengeModal(challengerId) {
   const challenger = players[challengerId];
   if (!challenger || !championId) return;
 
-  // If a modal already exists, don't open another
   if ($('challenge-modal')) return;
 
   const modal = document.createElement('div');
@@ -662,16 +682,17 @@ function openChallengeModal(challengerId) {
   modal.style.display = 'flex';
   modal.style.alignItems = 'center';
   modal.style.justifyContent = 'center';
-  modal.style.background = 'rgba(0,0,0,0.5)';
+  modal.style.background = 'rgba(0,0,0,0.45)';
   modal.style.zIndex = 10000;
 
   const panel = document.createElement('div');
-  panel.style.background = '#fff';
+  panel.style.background = '#0b1220';
   panel.style.padding = '16px';
-  panel.style.borderRadius = '8px';
+  panel.style.borderRadius = '10px';
   panel.style.minWidth = '320px';
-  panel.style.maxWidth = '520px';
-  panel.style.boxShadow = '0 6px 24px rgba(0,0,0,0.3)';
+  panel.style.maxWidth = '560px';
+  panel.style.boxShadow = '0 8px 30px rgba(0,0,0,0.6)';
+  panel.style.color = '#e6eef8';
 
   const header = document.createElement('h3');
   header.textContent = `Record Challenge: ${challenger.name} vs ${players[championId].name}`;
@@ -681,7 +702,7 @@ function openChallengeModal(challengerId) {
   const descLabel = document.createElement('label');
   descLabel.textContent = 'Description';
   descLabel.style.display = 'block';
-  descLabel.style.marginBottom = '6px';
+  descLabel.style.margin = '8px 0 6px';
   panel.appendChild(descLabel);
 
   const descArea = document.createElement('textarea');
@@ -689,6 +710,10 @@ function openChallengeModal(challengerId) {
   descArea.rows = 4;
   descArea.style.width = '100%';
   descArea.style.boxSizing = 'border-box';
+  descArea.style.background = 'rgba(255,255,255,0.02)';
+  descArea.style.color = '#e6eef8';
+  descArea.style.border = '1px solid rgba(255,255,255,0.04)';
+  descArea.style.borderRadius = '6px';
   descArea.placeholder = 'Short description of the match...';
   panel.appendChild(descArea);
 
@@ -697,6 +722,7 @@ function openChallengeModal(challengerId) {
   buttonsRow.style.gap = '8px';
   buttonsRow.style.marginTop = '12px';
   buttonsRow.style.justifyContent = 'space-between';
+  buttonsRow.style.alignItems = 'center';
 
   const leftCol = document.createElement('div');
   leftCol.style.display = 'flex';
@@ -708,7 +734,7 @@ function openChallengeModal(challengerId) {
   nextUpBtn.style.color = '#fff';
   nextUpBtn.style.padding = '8px 12px';
   nextUpBtn.style.border = 'none';
-  nextUpBtn.style.borderRadius = '4px';
+  nextUpBtn.style.borderRadius = '6px';
   nextUpBtn.addEventListener('click', async () => {
     const desc = descArea.value || '';
     await submitChallengeForm(challengerId, challenger.name, desc, challengerId);
@@ -721,7 +747,7 @@ function openChallengeModal(challengerId) {
   champBtn.style.color = '#fff';
   champBtn.style.padding = '8px 12px';
   champBtn.style.border = 'none';
-  champBtn.style.borderRadius = '4px';
+  champBtn.style.borderRadius = '6px';
   champBtn.addEventListener('click', async () => {
     const desc = descArea.value || '';
     await submitChallengeForm(challengerId, challenger.name, desc, championId);
@@ -738,8 +764,10 @@ function openChallengeModal(challengerId) {
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = 'Cancel';
   cancelBtn.style.padding = '8px 12px';
-  cancelBtn.style.border = '1px solid #ccc';
-  cancelBtn.style.borderRadius = '4px';
+  cancelBtn.style.border = '1px solid rgba(255,255,255,0.06)';
+  cancelBtn.style.borderRadius = '6px';
+  cancelBtn.style.background = 'transparent';
+  cancelBtn.style.color = '#e6eef8';
   cancelBtn.addEventListener('click', () => {
     closeChallengeModal();
   });
