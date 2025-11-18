@@ -42,9 +42,7 @@ let sweepRecordedFor = null;
 
 let suppressDefeatsListener = false;
 
-// More robust initial-load gating:
-// we'll mark each important node as "loaded" on its first onValue callback.
-// Only after all required nodes report in do we allow sweep recordings.
+// initial load gating nodes
 const initialNodes = ['players','playersOrder','championId','defeats','championBoard','timer/endTimestamp'];
 const initialLoaded = new Set();
 let initialDataLoaded = false;
@@ -149,8 +147,6 @@ const CHAMPION_BOARD_DEBOUNCE_MS = 5000;
 async function addChampionBoardEntry(champId, champName) {
   try {
     const now = Date.now();
-
-    // 1) Check durable last-sweep marker in DB (prevents re-adding same champion within debounce window)
     const last = await getLastSweep();
     if (last && last.id === champId) {
       if ((now - (last.timestamp || 0)) < CHAMPION_BOARD_DEBOUNCE_MS) {
@@ -159,7 +155,6 @@ async function addChampionBoardEntry(champId, champName) {
       }
     }
 
-    // 2) Read latest championBoard entry (defensive)
     const snap = await get(ref(db, 'championBoard'));
     const val = snap.val() || {};
     const entries = Object.values(val);
@@ -177,23 +172,19 @@ async function addChampionBoardEntry(champId, champName) {
       return;
     }
 
-    // 3) Safe to push new entry and set durable marker
     const entry = { id: champId, name: champName, timestamp: now };
     const bRef = push(ref(db, 'championBoard'));
     await set(bRef, entry);
     console.log('Champion Board entry added', entry);
-
-    // 4) Persist durable marker of this sweep
     await setLastSweep(champId, now);
   } catch (e) {
     console.error('addChampionBoardEntry failed', e);
   }
 }
 
-// ---------------------- Sweep checker (guarded by initialDataLoaded) ----------------------
+// ---------------------- Sweep checker ----------------------
 async function checkForSweep(triggerContext = 'unknown') {
   try {
-    // Don't run sweep logic until after initial sync finishes
     if (!initialDataLoaded) {
       console.log('[checkForSweep] skipped — initial data not loaded yet');
       return false;
@@ -226,7 +217,7 @@ async function checkForSweep(triggerContext = 'unknown') {
       await setTimerEnd(null);
       isPendingState = true;
 
-      // immediate UI update so Assign button appears reliably
+      renderChallengeSection(); // ensure UI updates for Next Up / timer
       renderChampion();
       renderRoster();
 
@@ -450,6 +441,8 @@ async function handleTimerExpiry() {
 }
 
 // ---------------------- Rendering ----------------------
+
+// Renders the champion card and actions (unchanged)
 function renderChampion() {
   const el = $('champion-card');
   if (!el) return;
@@ -464,7 +457,7 @@ function renderChampion() {
   renderChampionActions();
 }
 
-// Show Assign only when pending AND there is a champion; show Lock in Order when no champion
+// Existing champion actions logic (Assign / Lock in Order)
 function renderChampionActions() {
   const area = $('champion-actions-area');
   if (!area) return;
@@ -487,6 +480,7 @@ function renderChampionActions() {
       isPendingState = true;
       await setTimerEnd(null);
       playExplosionAnimation(10000);
+      renderChallengeSection();
       renderChampion();
       renderRoster();
     });
@@ -507,6 +501,7 @@ function renderChampionActions() {
       isPendingState = false;
       pendingAnimPlaying = false;
       await startTimerOneWeek(true);
+      renderChallengeSection();
       renderChampion();
       renderRoster();
       renderMatchHistory();
@@ -515,6 +510,68 @@ function renderChampionActions() {
   }
 }
 
+// New: render the Challenge section (Next Up + timer + button)
+function renderChallengeSection() {
+  const el = $('challenge-section');
+  if (!el) return;
+
+  // Find the Next Up: first in order that is not the champion
+  const ordered = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
+  const nextUpId = ordered.find(id => id && id !== championId && players[id]) || null;
+  const nextUpName = nextUpId ? (players[nextUpId]?.name || 'Unknown') : 'No one';
+
+  // Build the HTML: big silver name, timer underneath, and challenge button
+  el.innerHTML = '';
+  const title = document.createElement('h2');
+  title.textContent = 'Challenge';
+  el.appendChild(title);
+
+  const nextRow = document.createElement('div');
+  nextRow.className = 'next-up-row';
+
+  const nameWrap = document.createElement('div');
+  nameWrap.className = 'next-up-name';
+  nameWrap.textContent = nextUpName;
+  // style with inline so it works without additional CSS edits
+  nameWrap.style.fontSize = '28px';
+  nameWrap.style.fontWeight = '700';
+  nameWrap.style.color = 'silver';
+  nameWrap.style.marginRight = '12px';
+  nameWrap.style.display = 'inline-block';
+
+  nextRow.appendChild(nameWrap);
+
+  // If there's someone next up, show the challenge entry button
+  const btn = document.createElement('button');
+  btn.textContent = 'Record Challenge';
+  btn.title = 'Record a challenge for the Next Up player';
+  btn.disabled = !nextUpId || !championId; // disable if no challenger or no champion
+  btn.addEventListener('click', async () => {
+    if (!nextUpId) { alert('No Next Up player'); return; }
+    // Use the same challenge flow as the previous handleRosterClick prompts,
+    // but targeting nextUpId as challenger.
+    await promptAndRecordChallenge(nextUpId);
+  });
+  nextRow.appendChild(btn);
+
+  el.appendChild(nextRow);
+
+  // Timer display under the Next Up
+  const timerWrap = document.createElement('div');
+  timerWrap.className = 'next-up-timer';
+  timerWrap.style.marginTop = '8px';
+  const timerText = document.createElement('div');
+  timerText.id = 'timer-display';
+  timerText.style.fontSize = '14px';
+  timerText.style.opacity = '0.9';
+  timerWrap.appendChild(timerText);
+  el.appendChild(timerWrap);
+
+  // Ensure timer display and other parts are updated
+  updateTimerDisplay();
+}
+
+// Modify roster rendering so clicking names does NOT trigger prompts (no challenge entry from roster)
 function renderRoster() {
   const roster = $('roster');
   if (!roster) return;
@@ -522,6 +579,7 @@ function renderRoster() {
   if (!players || Object.keys(players).length === 0) { roster.innerHTML += '<p>No players yet</p>'; return; }
 
   const orderedIds = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
+  // We still display the full roster excluding champion (Next Up is displayed separately)
   const visibleIds = orderedIds.filter(id => id !== championId && players[id]);
 
   visibleIds.forEach((id, position) => {
@@ -531,8 +589,12 @@ function renderRoster() {
     const row = document.createElement('div'); row.className = 'roster-row';
     const handle = document.createElement('div'); handle.className = 'order-handle'; handle.textContent = '☰';
     const nameBtn = document.createElement('button'); nameBtn.className = 'roster-name'; nameBtn.textContent = p.name; nameBtn.dataset.id = id;
+
+    // Remove prompt behavior here — clicking roster names does nothing now
+    nameBtn.disabled = true;
+    nameBtn.title = 'Use the Challenge panel to record a challenge for Next Up';
+
     if (defeated.has(id)) nameBtn.classList.add('lost'); else nameBtn.classList.remove('lost');
-    nameBtn.addEventListener('click', () => handleRosterClick(id));
 
     row.append(handle, nameBtn);
 
@@ -540,9 +602,9 @@ function renderRoster() {
 
     if (visibleIds.length > 1) {
       const up = document.createElement('button'); up.className = 'move-btn'; up.textContent = '↑'; up.disabled = (position === 0 || !orderEditable);
-      up.addEventListener('click', async (e) => { e.stopPropagation(); const idx = playersOrderArr.indexOf(id); if (idx > 0) { [playersOrderArr[idx-1], playersOrderArr[idx]] = [playersOrderArr[idx], playersOrderArr[idx-1]]; await savePlayersOrder(); renderRoster(); } });
+      up.addEventListener('click', async (e) => { e.stopPropagation(); const idx = playersOrderArr.indexOf(id); if (idx > 0) { [playersOrderArr[idx-1], playersOrderArr[idx]] = [playersOrderArr[idx], playersOrderArr[idx-1]]; await savePlayersOrder(); renderRoster(); renderChallengeSection(); } });
       const down = document.createElement('button'); down.className = 'move-btn'; down.textContent = '↓'; down.disabled = (position === visibleIds.length - 1 || !orderEditable);
-      down.addEventListener('click', async (e) => { e.stopPropagation(); const idx = playersOrderArr.indexOf(id); if (idx >= 0 && idx < playersOrderArr.length - 1) { [playersOrderArr[idx+1], playersOrderArr[idx]] = [playersOrderArr[idx], playersOrderArr[idx+1]]; await savePlayersOrder(); renderRoster(); } });
+      down.addEventListener('click', async (e) => { e.stopPropagation(); const idx = playersOrderArr.indexOf(id); if (idx >= 0 && idx < playersOrderArr.length - 1) { [playersOrderArr[idx+1], playersOrderArr[idx]] = [playersOrderArr[idx], playersOrderArr[idx+1]]; await savePlayersOrder(); renderRoster(); renderChallengeSection(); } });
       row.append(up, down);
     }
 
@@ -589,40 +651,35 @@ function renderChampionBoard() {
   });
 }
 
-// ---------------------- Challenge flow ----------------------
-async function handleRosterClick(id) {
-  const p = players[id]; if (!p) return;
+// ---------------------- Challenge entry flow (centralized for Next Up) ----------------------
 
-  if (!championId) {
-    if (confirm(`${p.name} selected. Make them champion?`)) {
-      await set(ref(db, 'championId'), id);
-      championId = id;
-      isPendingState = false;
-      pendingAnimPlaying = false;
-      await startTimerOneWeek(true);
-      renderChampion();
-      renderRoster();
-    }
-    return;
-  }
+// Prompt + record flow that used to be triggered by clicking roster names.
+// Now used only by the Next Up "Record Challenge" button.
+// This reuses the same logic as the old handleRosterClick flow.
+async function promptAndRecordChallenge(challengerId) {
+  const p = players[challengerId];
+  if (!p) { alert('Challenger not found'); return; }
+  if (!championId) { alert('No champion set'); return; }
 
+  // description prompt
   const desc = prompt(`Describe the challenge between ${p.name} and ${players[championId].name}:`);
   if (desc === null) {
     console.log('Challenge description cancelled; aborting flow, no timer change.');
     return;
   }
 
+  // winner prompt (keeps old behavior)
   const winnerName = prompt(`Who won? Type exactly: "${p.name}" or "${players[championId].name}"`);
   if (winnerName === null) {
     console.log('Winner prompt cancelled; aborting flow, no timer change.');
     return;
   }
 
-  const winnerId = (winnerName === p.name) ? id : championId;
+  const winnerId = (winnerName === p.name) ? challengerId : championId;
   const winnerDisplay = (winnerName === p.name) ? p.name : players[championId].name;
 
   const match = {
-    challengerId: id,
+    challengerId: challengerId,
     challengerName: p.name,
     championId,
     championName: players[championId].name,
@@ -636,32 +693,31 @@ async function handleRosterClick(id) {
     await writeMatch(match);
     await startTimerOneWeek(true);
 
-    if (winnerId === id) {
+    if (winnerId === challengerId) {
       const prevChampion = championId;
-
       suppressDefeatsListener = true;
       try {
         await remove(ref(db, 'defeats'));
         defeated = new Set();
         renderRoster();
 
-        if (prevChampion && prevChampion !== id) {
+        if (prevChampion && prevChampion !== challengerId) {
           const prevIdx = playersOrderArr.indexOf(prevChampion);
           if (prevIdx !== -1) { playersOrderArr.splice(prevIdx, 1); }
           playersOrderArr.push(prevChampion);
           await savePlayersOrder();
         }
 
-        await set(ref(db, 'championId'), id);
-        championId = id;
+        await set(ref(db, 'championId'), challengerId);
+        championId = challengerId;
 
         if (prevChampion) {
           try { await remove(ref(db, `defeats/${prevChampion}`)); } catch (e) { console.warn('remove prev defeat failed', e); }
           defeated.delete(prevChampion);
         }
 
-        try { await remove(ref(db, `defeats/${id}`)); } catch(e){ console.warn('clear new champ defeat failed', e); }
-        defeated.delete(id);
+        try { await remove(ref(db, `defeats/${challengerId}`)); } catch(e){ console.warn('clear new champ defeat failed', e); }
+        defeated.delete(challengerId);
 
         triggerConfetti();
         log(`${p.name} dethroned ${players[prevChampion]?.name || 'previous champion'}`);
@@ -679,18 +735,19 @@ async function handleRosterClick(id) {
         suppressDefeatsListener = false;
       }
     } else {
-      await persistDefeat(id);
-      const idx = playersOrderArr.indexOf(id);
-      if (idx !== -1) { playersOrderArr.splice(idx,1); playersOrderArr.push(id); } else playersOrderArr.push(id);
+      await persistDefeat(challengerId);
+      const idx = playersOrderArr.indexOf(challengerId);
+      if (idx !== -1) { playersOrderArr.splice(idx,1); playersOrderArr.push(challengerId); } else playersOrderArr.push(challengerId);
       await savePlayersOrder();
       log(`${p.name} lost to ${players[championId].name}`);
     }
 
-    if (!playersOrderArr.includes(id)) { playersOrderArr.push(id); await savePlayersOrder(); }
+    if (!playersOrderArr.includes(challengerId)) { playersOrderArr.push(challengerId); await savePlayersOrder(); }
 
     renderChampion();
     renderRoster();
     renderMatchHistory();
+    renderChallengeSection();
   } catch (err) {
     console.error('Error recording match', err);
     log('Error saving match: ' + err.message);
@@ -705,7 +762,7 @@ function triggerConfetti() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   const parts = [];
-  const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'];
+  const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a493'];
   for (let i=0;i<80;i++) {
     parts.push({x: Math.random()*canvas.width, y: -50 - Math.random()*200, vx: (Math.random()-0.5)*6, vy: 2 + Math.random()*6, size: 6 + Math.random()*8, c: colors[Math.floor(Math.random()*colors.length)], life:0});
   }
@@ -734,6 +791,7 @@ async function addPlayer() {
     input.value = '';
     if (!playersOrderArr.includes(id)) { playersOrderArr.push(id); await savePlayersOrder(); }
     log(`Added ${name}`);
+    renderChallengeSection();
   } catch (err) {
     console.error('Add player failed', err);
     log('Add player failed: ' + err.message);
@@ -748,6 +806,7 @@ onValue(ref(db, 'players'), snap => {
   allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
   playersOrderArr = playersOrderArr.filter(pid => allIds.includes(pid));
   renderRoster();
+  renderChallengeSection();
   markInitialNodeLoaded('players');
 });
 
@@ -759,13 +818,13 @@ onValue(ref(db, 'playersOrder'), snap => {
   allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
   playersOrderArr = playersOrderArr.filter(pid => allIds.includes(pid));
   renderRoster();
+  renderChallengeSection();
   markInitialNodeLoaded('playersOrder');
 });
 
 onValue(ref(db, 'championId'), snap => {
   const newChampionId = snap.val();
   const normalized = norm(newChampionId);
-  // If champion changed, clear the local recorded-sweep lock so new sweeps can record later
   if (normalized !== championId) {
     sweepRecordedFor = null;
   }
@@ -777,6 +836,7 @@ onValue(ref(db, 'championId'), snap => {
   }
   renderChampion();
   renderRoster();
+  renderChallengeSection();
   markInitialNodeLoaded('championId');
 });
 
@@ -784,7 +844,6 @@ onValue(ref(db, 'matches'), snap => {
   const val = snap.val() || {};
   matches = Object.values(val);
   renderMatchHistory();
-  // not required for initial sweep gating
 });
 
 onValue(ref(db, 'defeats'), async snap => {
@@ -796,6 +855,7 @@ onValue(ref(db, 'defeats'), async snap => {
   defeated = new Set(Object.keys(val).map(norm));
   if (championId && defeated.has(championId)) defeated.delete(championId);
   renderRoster();
+  renderChallengeSection();
   markInitialNodeLoaded('defeats');
   checkForSweep('defeats:db-snapshot');
 });
@@ -817,17 +877,20 @@ onValue(ref(db, 'timer/endTimestamp'), snap => {
     clearLocalInterval();
     updateTimerDisplay();
   }
+  renderChallengeSection();
   markInitialNodeLoaded('timer/endTimestamp');
 });
 
-// Connectivity check (kept for logging but not used to gate initialDataLoaded now)
+// Connectivity check
 (async function testConn(){
-  try {
-    const root = await get(ref(db, '/'));
-    console.log('Initial DB root', root.val());
-    log('Connected to Firebase');
-  } catch (e) {
-    console.error('Firebase connectivity test failed', e);
-    log('Firebase connect failed: ' + e.message);
-  }
+  try { const root = await get(ref(db, '/')); console.log('Initial DB root', root.val()); log('Connected to Firebase'); } catch (e) { console.error('Firebase connectivity test failed', e); log('Firebase connect failed: ' + e.message); }
 })();
+
+// Wire initial UI mounts (in case DOM already has these containers)
+document.addEventListener('DOMContentLoaded', () => {
+  renderChampion();
+  renderRoster();
+  renderChallengeSection();
+  renderMatchHistory();
+  renderChampionBoard();
+});
