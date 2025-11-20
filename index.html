@@ -1,43 +1,43 @@
-<!-- index.html -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Challenge League</title>
-  <!-- Link to CSS -->
-  <link rel="stylesheet" href="css/styles.css">
-  <!-- Confetti Library -->
-  <script src="https://cdn.jsdelivr.net/npm/js-confetti@latest/dist/js-confetti.browser.js"></script>
+
+  <!-- External stylesheet (cache-busted) -->
+  <link rel="stylesheet" href="styles.css?v=1" />
 </head>
 <body>
-  <header>
-    <h1 class="site-title">Challenge League</h1>
-  </header>
-  <main>
-    <section class="timer-section" aria-label="Challenge Timer">
-      <div class="timer-container" role="timer" aria-live="polite">
-        <span id="timer-days" class="timer-value">0</span><span class="timer-label">d</span>
-        <span id="timer-hours" class="timer-value">00</span><span class="timer-label">h</span>
-        <span id="timer-minutes" class="timer-value">00</span><span class="timer-label">m</span>
-        <span id="timer-seconds" class="timer-value">00</span><span class="timer-label">s</span>
-      </div>
+  <main class="container">
+    <header><h1>Challenge League</h1></header>
+
+    <section class="top-row">
+      <aside class="left-col">
+        <div id="champion-card" class="card"></div>
+        <div id="challenge-section" class="card"></div>
+      </aside>
+
+      <section class="middle-col">
+        <div id="roster" class="card"></div>
+
+        <div class="card add-player">
+          <input id="new-player-name" type="text" placeholder="New player name" />
+          <button id="add-player-button">Add Player</button>
+          <div id="add-player-log" class="log" aria-live="polite"></div>
+        </div>
+
+        <div id="match-list" class="card history"></div>
+      </section>
+
+      <aside class="right-col">
+        <div id="champion-board-list" class="card"></div>
+      </aside>
     </section>
-    <section class="leaderboard-section" aria-label="Leaderboard">
-      <ul id="leaderboard" class="leaderboard-list" role="list">
-        <!-- Player entries rendered here -->
-      </ul>
-    </section>
-    <section class="challenge-section" aria-label="Challenge Actions">
-      <button id="challenge-btn" class="challenge-btn" aria-label="Challenge the Champion">Challenge</button>
-    </section>
-    <!-- Explosion animation canvas -->
-    <canvas id="explosion-canvas" class="explosion-canvas" aria-hidden="true"></canvas>
+
+    <canvas id="confetti-canvas" class="confetti" aria-hidden="true"></canvas>
   </main>
-  <footer>
-    <p>&copy; 2025 Challenge League</p>
-  </footer>
-  <!-- App JavaScript -->
-  <script src="js/app.js"></script>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
