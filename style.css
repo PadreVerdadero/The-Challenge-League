@@ -1,249 +1,218 @@
 /* styles.css */
 
-/* Base Styles */
-html, body {
+/* General Styles */
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #f8fafc;
+  color: #222;
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
-  background: #f5f6fa;
-  color: #222;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-header {
+header, footer {
   background: #222;
   color: #fff;
-  padding: 1.5rem 0 1rem 0;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(34,34,34,0.08);
+  padding: 1em 0;
 }
 
-header h1 {
-  margin: 0 0 0.5rem 0;
-  font-size: 2.2rem;
-  letter-spacing: 1px;
+.site-title {
+  margin: 0;
+  font-size: 2.2em;
+  letter-spacing: 2px;
+  font-weight: 700;
 }
 
-#timer-container {
-  margin: 0.5rem auto 0 auto;
-  font-size: 1.2rem;
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2em 1em;
+}
+
+.timer-section {
+  margin-bottom: 2em;
+}
+
+.timer-container {
   background: #fff;
-  color: #222;
-  display: inline-block;
-  padding: 0.5em 1.2em;
-  border-radius: 999px;
-  box-shadow: 0 2px 8px rgba(34,34,34,0.05);
+  border-radius: 1em;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08);
+  padding: 1em 2em;
+  font-size: 1.5em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
 }
 
-#timer-label {
-  font-weight: 500;
+.timer-value {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: bold;
+  color: #1976D2;
+  min-width: 2ch;
+  text-align: right;
+}
+
+.timer-label {
+  font-size: 0.8em;
+  color: #888;
   margin-right: 0.5em;
 }
 
-#timer {
-  font-family: 'Roboto Mono', 'Consolas', monospace;
-  font-size: 1.2em;
-  letter-spacing: 1px;
-  color: #d32f2f;
-  font-weight: bold;
+.leaderboard-section {
+  width: 100%;
+  max-width: 500px;
+  margin-bottom: 2em;
 }
 
-/* Main Layout */
-main {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 2.5rem;
-  max-width: 1100px;
-  margin: 2.5rem auto 2rem auto;
-  padding: 0 1rem;
-}
-
-section {
-  background: #fff;
-  border-radius: 1.2rem;
-  box-shadow: 0 2px 16px rgba(34,34,34,0.07);
-  padding: 1.5rem 1rem 1.5rem 1rem;
-  min-width: 0;
-}
-
-section h2 {
-  margin-top: 0;
-  font-size: 1.3rem;
-  color: #1976d2;
-  letter-spacing: 0.5px;
-  margin-bottom: 1rem;
-}
-
-/* Champion Pill */
-.pill {
-  display: inline-block;
-  padding: 0.6em 1.6em;
-  border-radius: 999px;
-  font-size: 1.1em;
-  font-weight: 600;
-  margin: 0.3em 0.2em;
-  vertical-align: middle;
-  transition: box-shadow 0.2s, transform 0.15s;
-  box-shadow: 0 2px 8px rgba(34,34,34,0.08);
-  cursor: default;
-  outline: none;
-}
-
-.pill.champion {
-  background: linear-gradient(90deg, #FFD700 60%, #fffbe7 100%);
-  color: #222;
-  border: 2px solid #e6c200;
-  box-shadow: 0 4px 16px 0 rgba(255,215,0,0.15);
-  position: relative;
-}
-
-.pill.champion::after {
-  content: "👑";
-  margin-left: 0.7em;
-  font-size: 1.1em;
-  vertical-align: middle;
-}
-
-.pill.champion:focus {
-  box-shadow: 0 0 0 3px #ffe066;
-  outline: none;
-}
-
-.pill.challenger {
-  background: linear-gradient(90deg, #2196F3 70%, #e3f2fd 100%);
-  color: #fff;
-  border: 2px solid #1976d2;
-  box-shadow: 0 2px 8px rgba(33,150,243,0.10);
-  position: relative;
-}
-
-.pill.challenger::after {
-  content: "⚔️";
-  margin-left: 0.7em;
-  font-size: 1.1em;
-  vertical-align: middle;
-}
-
-.pill.challenger:focus {
-  box-shadow: 0 0 0 3px #90caf9;
-  outline: none;
-}
-
-.pill.defeated {
-  background: #fff;
-  color: #d32f2f;
-  border: 2px solid #d32f2f;
-  text-decoration: line-through;
-  opacity: 0.7;
-  position: relative;
-}
-
-.pill.defeated::after {
-  content: "❌";
-  margin-left: 0.7em;
-  font-size: 1.1em;
-  vertical-align: middle;
-}
-
-.pill.defeated:focus {
-  box-shadow: 0 0 0 3px #ffcdd2;
-  outline: none;
-}
-
-/* Challenger Queue */
-#challenger-queue {
+.leaderboard-list {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-#challenger-queue li {
-  margin-bottom: 0.7em;
-}
-
-/* Match History */
-#match-history {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 340px;
-  overflow-y: auto;
-}
-
-.match-entry {
+.leaderboard-list li {
   display: flex;
   align-items: center;
-  gap: 0.7em;
-  margin-bottom: 0.7em;
+  justify-content: space-between;
+  margin-bottom: 1em;
+  padding: 0.8em 1.2em;
+  background: #fff;
+  border-radius: 1em;
+  box-shadow: 0 1px 4px rgba(33, 150, 243, 0.06);
+  font-size: 1.1em;
+  transition: background 0.2s;
+}
+
+/* Champion Styling */
+.champion {
+  background: linear-gradient(90deg, #FFD700 0%, #D7A63E 100%);
+  color: #fff !important;
+  border: 2px solid #FFD700;
+  box-shadow: 0 2px 12px rgba(215, 166, 62, 0.18);
+  font-weight: bold;
+  position: relative;
+}
+
+.champion-text {
+  background: linear-gradient(90deg, #FFD700 0%, #D7A63E 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+  font-size: 1.2em;
+  font-weight: bold;
+  letter-spacing: 1px;
+  margin-left: 1em;
+}
+
+/* Challenger Styling */
+.challenger {
+  background: linear-gradient(90deg, #1976D2 0%, #2196F3 100%);
+  color: #fff !important;
+  border: 2px solid #1976D2;
+  box-shadow: 0 2px 12px rgba(33, 150, 243, 0.18);
+  font-weight: bold;
+  position: relative;
+}
+
+.challenger-text {
+  color: #fff;
+  background: linear-gradient(90deg, #1976D2 0%, #2196F3 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+  font-size: 1.1em;
+  font-weight: bold;
+  letter-spacing: 1px;
+  margin-left: 1em;
+}
+
+/* Defeated Styling */
+.defeated {
+  color: #B32525 !important;
+  text-decoration: line-through;
+  font-weight: bold;
+  opacity: 0.7;
+  background: #fff;
+  border: 2px solid #B32525;
+}
+
+.defeated-text {
+  color: #B32525;
   font-size: 1em;
+  margin-left: 1em;
 }
 
-.match-entry .pill {
-  margin: 0 0.2em 0 0;
+/* Player Name */
+.player-name {
+  font-size: 1.1em;
+  font-weight: 500;
 }
 
-.match-entry .vs {
-  color: #888;
-  font-size: 1em;
-  margin: 0 0.3em;
-}
-
-.match-entry .timestamp {
-  color: #aaa;
-  font-size: 0.95em;
-  margin-left: auto;
-  font-family: 'Roboto Mono', 'Consolas', monospace;
-}
-
-/* Canvas for Confetti/Explosion */
-#celebration-canvas {
-  position: fixed;
-  pointer-events: none;
-  left: 0; top: 0; width: 100vw; height: 100vh;
-  z-index: 1000;
-  display: block;
-  background: transparent;
-}
-
-/* Footer */
-footer {
-  text-align: center;
-  color: #888;
-  font-size: 1em;
-  padding: 1.5em 0 0.5em 0;
-  background: none;
+/* Challenge Button */
+.challenge-section {
   margin-top: 2em;
 }
 
-/* Responsive Design */
-@media (max-width: 900px) {
-  main {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-  section {
-    margin-bottom: 1.5rem;
-  }
+.challenge-btn {
+  background: linear-gradient(90deg, #FFD700 0%, #1976D2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 2em;
+  padding: 0.7em 2em;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.12);
+  transition: background 0.2s, box-shadow 0.2s;
 }
 
+.challenge-btn:hover,
+.challenge-btn:focus {
+  background: linear-gradient(90deg, #1976D2 0%, #FFD700 100%);
+  box-shadow: 0 4px 16px rgba(33, 150, 243, 0.18);
+  outline: none;
+}
+
+/* Explosion Canvas */
+.explosion-canvas {
+  position: fixed;
+  pointer-events: none;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999;
+  display: none;
+}
+
+/* Responsive Design */
 @media (max-width: 600px) {
-  header h1 {
-    font-size: 1.4rem;
+  .timer-container {
+    font-size: 1.1em;
+    padding: 0.7em 1em;
   }
-  #timer-container {
+  .leaderboard-section {
+    max-width: 100%;
+  }
+  .leaderboard-list li {
     font-size: 1em;
-    padding: 0.4em 0.7em;
+    padding: 0.6em 0.7em;
   }
-  main {
-    padding: 0 0.3rem;
-  }
-  section {
-    padding: 1rem 0.5rem;
+  .challenge-btn {
+    font-size: 1em;
+    padding: 0.6em 1.2em;
   }
 }
 
 /* Accessibility: Focus Styles */
-.pill:focus-visible {
-  outline: 2px solid #1976d2;
+.challenge-btn:focus {
+  outline: 2px solid #FFD700;
   outline-offset: 2px;
 }
