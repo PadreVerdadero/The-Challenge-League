@@ -72,6 +72,18 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
 .roster-name.challenger{ background: linear-gradient(90deg,#4da6ff,#1f6feb); color:#fff; font-weight:800; }
 .roster-name.lost{ background: linear-gradient(90deg,#ffb5b5,#ff7b7b); color:#fff; font-weight:700; text-decoration:line-through; }
 
+/* Roster name color states */
+.roster-name.active {
+  background: #143761;   /* blue background */
+  color: #fff;
+  border-color: rgba(31,111,235,0.5);
+}
+
+.roster-name.defeated {
+  background: #5a1420;   /* red background */
+  color: #fff;
+  border-color: rgba(255,77,79,0.55);
+}
 .move-btn{ background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--muted); padding:6px 8px; border-radius:6px; cursor:pointer; }
 .move-btn:disabled{ opacity:0.35; cursor:not-allowed; }
 
