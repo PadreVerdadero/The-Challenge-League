@@ -1,41 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>The Challenge League</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Favicon (optional). Remove this line if you don't have the file yet. -->
+  <!-- Favicon (optional) -->
   <link rel="icon" href="favicon.ico" type="image/x-icon">
 
   <!-- Main stylesheet -->
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="styles.css">
+
+  <style>
+    /* Minimal fallback styles so page isn't blank if styles.css fails */
+    :root { --bg:#0b1220; --text:#e6eef8; }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+  </style>
 </head>
 <body>
-  <h1>🏆 The Challenge League</h1>
+  <header style="display:flex;align-items:center;gap:12px;padding:20px 24px;">
+    <h1 style="margin:0;font-size:20px;">🏆 The Challenge League</h1>
+    <div style="margin-left:auto;color:#9fb3c8;font-size:13px;">Live</div>
+  </header>
 
-  <!-- Champion -->
-  <div id="champion-card" class="card"></div>
+  <main style="padding:0 24px 48px;max-width:980px;margin:0 auto;">
+    <!-- Champion card -->
+    <section id="champion-card" class="card" aria-live="polite"></section>
 
-  <!-- Challenger -->
-  <div id="challenge-section" class="card"></div>
+    <!-- Challenger section -->
+    <section id="challenge-section" class="card" aria-live="polite"></section>
 
-  <!-- Roster -->
-  <div id="roster" class="card"></div>
+    <!-- Roster -->
+    <section id="roster" class="card" aria-live="polite"></section>
 
-  <!-- Add Player -->
-  <div class="card">
-    <input id="new-player-name" type="text" placeholder="Enter player name">
-    <button id="add-player-button">Add Player</button>
-  </div>
+    <!-- Add player -->
+    <section class="card" style="display:flex;gap:8px;align-items:center;">
+      <input id="new-player-name" type="text" placeholder="Enter player name" />
+      <button id="add-player-button">Add Player</button>
+    </section>
 
-  <!-- Match History -->
-  <div id="match-list" class="card"></div>
+    <!-- Match history -->
+    <section id="match-list" class="card" aria-live="polite"></section>
+  </main>
 
-  <!-- Confetti Canvas -->
-  <canvas id="confetti-canvas"></canvas>
+  <!-- Confetti canvas -->
+  <canvas id="confetti-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:9999"></canvas>
 
-  <!-- Load app.js as ES module -->
+  <!-- App script (module) -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
