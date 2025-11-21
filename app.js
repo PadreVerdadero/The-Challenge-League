@@ -65,9 +65,7 @@ function startLocalCountdown(){
 
 // --- Confetti ---
 function triggerConfetti(){
-  const canvas = $('confetti-canvas'); 
-  if (!canvas) return;
-
+  const canvas = $('confetti-canvas'); if (!canvas) return;
   const ctx = canvas.getContext('2d');
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -75,7 +73,7 @@ function triggerConfetti(){
   const parts = [];
   const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'];
 
-  for (let i=0; i<80; i++){
+  for (let i=0;i<80;i++){
     parts.push({
       x: Math.random()*canvas.width,
       y: -50 - Math.random()*200,
@@ -92,11 +90,11 @@ function triggerConfetti(){
     frame++;
     ctx.clearRect(0,0,canvas.width,canvas.height);
     parts.forEach(p=>{
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.06;
-      ctx.fillStyle = p.c;
-      ctx.fillRect(p.x, p.y, p.size, p.size*0.6);
+      p.x+=p.vx;
+      p.y+=p.vy;
+      p.vy+=0.06;
+      ctx.fillStyle=p.c;
+      ctx.fillRect(p.x,p.y,p.size,p.size*0.6);
     });
     if (frame < 120) {
       requestAnimationFrame(draw);
@@ -105,7 +103,7 @@ function triggerConfetti(){
     }
   }
   draw();
-}   // <-- make sure this closing brace is here
+}
 
 // --- Sweep helper ---
 function computeSweep(){
@@ -115,6 +113,7 @@ function computeSweep(){
   if (challengers.length === 0) return false;
   return challengers.every(id => defeated.has(id));
 }
+
 // --- Champion rendering ---
 function renderChampion(){
   const el = $('champion-card'); if (!el) return;
@@ -133,7 +132,6 @@ function renderChampionActions(){
   const area = $('champion-actions-area'); if (!area) return;
   area.innerHTML = '';
 
-  // Show Clear Champion only when sweep is true
   if (isSweep && championId){
     const btn = document.createElement('button');
     btn.textContent = 'Clear Champion (end sweep)';
@@ -146,7 +144,6 @@ function renderChampionActions(){
     });
     area.appendChild(btn);
   } else if (!championId){
-    // Show Lock in Order when no champion
     const btn = document.createElement('button');
     btn.textContent = 'Lock in Order';
     btn.addEventListener('click', async ()=>{
@@ -175,7 +172,6 @@ function renderChallengeSection(){
   const name = document.createElement('div'); name.className = 'next-up-name'; name.textContent = nextUpName;
   row.appendChild(name);
 
-  // Record Challenge button (red)
   const btn = document.createElement('button');
   btn.className = 'record-btn';
   btn.textContent = 'Record Challenge';
@@ -193,6 +189,7 @@ function renderChallengeSection(){
   el.appendChild(timerWrap);
   updateTimerDisplay();
 }
+
 // --- Roster rendering ---
 function renderRoster(){
   const el = $('roster'); if (!el) return;
@@ -215,14 +212,12 @@ function renderRoster(){
     nameBtn.className='roster-name';
     nameBtn.textContent = p.name;
 
-    // color by defeat status
     if (defeated.has(id)) {
-      nameBtn.classList.add('defeated');   // red
+      nameBtn.classList.add('defeated');
     } else {
-      nameBtn.classList.add('active');     // blue
+      nameBtn.classList.add('active');
     }
 
-    // Only allow remove when Add Player button is enabled
     const addBtn = $('add-player-button');
     if (addBtn && !addBtn.disabled){
       nameBtn.addEventListener('click', async ()=>{
@@ -234,35 +229,33 @@ function renderRoster(){
 
     row.append(handle,nameBtn);
 
-    // Disable move buttons while champion is locked in
     const movesDisabled = Boolean(championId);
-
-    if (visibleIds.length>1){
-      const up=document.createElement('button');
-      up.className='move-btn';
-      up.textContent='↑';
-      up.disabled=movesDisabled||(position===0);
-      up.addEventListener('click',async(e)=>{
+    if (visibleIds.length > 1){
+      const up = document.createElement('button');
+      up.className = 'move-btn';
+      up.textContent = '↑';
+      up.disabled = movesDisabled || (position === 0);
+      up.addEventListener('click', async (e)=>{
         e.stopPropagation();
-        if(movesDisabled) return;
-        const idx=playersOrderArr.indexOf(id);
-        if(idx>0){
-          [playersOrderArr[idx-1],playersOrderArr[idx]]=[playersOrderArr[idx],playersOrderArr[idx-1]];
-          await set(ref(db,'playersOrder'),Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+        if (movesDisabled) return;
+        const idx = playersOrderArr.indexOf(id);
+        if (idx > 0){
+          [playersOrderArr[idx-1], playersOrderArr[idx]] = [playersOrderArr[idx], playersOrderArr[idx-1]];
+          await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
         }
       });
 
-      const down=document.createElement('button');
-      down.className='move-btn';
-      down.textContent='↓';
-      down.disabled=movesDisabled||(position===visibleIds.length-1);
-      down.addEventListener('click',async(e)=>{
+      const down = document.createElement('button');
+      down.className = 'move-btn';
+      down.textContent = '↓';
+      down.disabled = movesDisabled || (position === visibleIds.length-1);
+      down.addEventListener('click', async (e)=>{
         e.stopPropagation();
-        if(movesDisabled) return;
-        const idx=playersOrderArr.indexOf(id);
-        if(idx>=0 && idx<playersOrderArr.length-1){
-          [playersOrderArr[idx+1],playersOrderArr[idx]]=[playersOrderArr[idx],playersOrderArr[idx+1]];
-          await set(ref(db,'playersOrder'),Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+        if (movesDisabled) return;
+        const idx = playersOrderArr.indexOf(id);
+        if (idx >= 0 && idx < playersOrderArr.length-1){
+          [playersOrderArr[idx+1], playersOrderArr[idx]] = [playersOrderArr[idx], playersOrderArr[idx+1]];
+          await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
         }
       });
 
@@ -272,19 +265,18 @@ function renderRoster(){
     el.appendChild(row);
   });
 }
+
 // --- Match History rendering ---
 function renderMatchHistory(){
   const el = $('match-list'); if (!el) return;
   el.innerHTML = `<h2>Match History</h2>`;
 
-  // If sweep occurred, record it as a permanent match entry
   if (isSweep && championId && players[championId]) {
     const sweepMatch = {
       type: 'sweep',
       winnerName: players[championId].name,
       timestamp: Date.now()
     };
-    // Push sweep record into DB if not already present
     const alreadyLogged = matches.some(m => m.type === 'sweep' && m.winnerName === sweepMatch.winnerName);
     if (!alreadyLogged) {
       const mRef = push(ref(db, 'matches'));
@@ -314,7 +306,7 @@ function renderMatchHistory(){
 // --- Challenge modal ---
 function openChallengeModal(challengerId){
   if (!championId) return;
-  if (isSweep) return; // disable during sweep
+  if (isSweep) return;
   if ($('challenge-modal')) return;
 
   const challenger = players[challengerId];
@@ -367,6 +359,7 @@ function openChallengeModal(challengerId){
 
   function closeModal(){ const m=$('challenge-modal'); if(m) m.remove(); }
 }
+
 // --- Challenge submission ---
 async function submitChallenge(challengerId, description, winnerId){
   const match = {
@@ -385,11 +378,9 @@ async function submitChallenge(challengerId, description, winnerId){
     await set(mRef, match);
 
     if (winnerId === challengerId){
-      // Challenger dethrones champion
       const previousChampion = championId;
       await set(ref(db, 'championId'), challengerId);
 
-      // Move previous champion to end of roster
       if (previousChampion && playersOrderArr.includes(previousChampion)) {
         const idx = playersOrderArr.indexOf(previousChampion);
         if (idx !== -1) {
@@ -404,7 +395,6 @@ async function submitChallenge(challengerId, description, winnerId){
       isSweep = false;
       triggerConfetti();
     } else {
-      // Champion defended
       await set(ref(db, `defeats/${challengerId}`), true);
       const idx = playersOrderArr.indexOf(challengerId);
       if (idx !== -1) {
@@ -414,7 +404,6 @@ async function submitChallenge(challengerId, description, winnerId){
       }
     }
 
-    // recompute sweep after each match
     isSweep = computeSweep();
     renderAll();
   } catch (e) {
@@ -446,7 +435,7 @@ onValue(ref(db, 'players'), snap=>{
   const allIds = Object.keys(players);
   playersOrderArr = playersOrderArr.filter(pid => allIds.includes(pid));
   allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
-  isSweep = computeSweep();   // recompute sweep
+  isSweep = computeSweep();
   renderAll();
 });
 
@@ -454,13 +443,13 @@ onValue(ref(db, 'playersOrder'), snap=>{
   const val = snap.val();
   if (!val) playersOrderArr = [];
   else playersOrderArr = Object.entries(val).map(([k,id])=>({idx:Number(k),id}))
-    .sort((a,b)=>a.idx-b.idx).map(e=>e.id);
+    .sort((a,b)=>a.idx-b.idx).map.sort((a,b)=>a.idx-b.idx).map(e=>e.id);
   renderAll();
 });
 
 onValue(ref(db, 'championId'), snap=>{
   championId = snap.val();
-  isSweep = computeSweep();   // recompute sweep
+  isSweep = computeSweep();
   renderAll();
 });
 
@@ -471,13 +460,17 @@ onValue(ref(db, 'matches'), snap=>{
 
 onValue(ref(db, 'defeats'), snap=>{
   defeated = new Set(Object.keys(snap.val() || {}));
-  isSweep = computeSweep();   // recompute sweep
+  isSweep = computeSweep();
   renderAll();
 });
 
 onValue(ref(db, 'timer/endTimestamp'), snap=>{
   timerEnd = snap.val() || null;
-  if (timerEnd){ startLocalCountdown(); } else { updateTimerDisplay(); }
+  if (timerEnd){ 
+    startLocalCountdown(); 
+  } else { 
+    updateTimerDisplay(); 
+  }
 });
 
 // --- Helper to render everything ---
@@ -487,7 +480,6 @@ function renderAll(){
   renderRoster();
   renderMatchHistory();
 
-  // Toggle Add Player button state
   const addBtn = $('add-player-button');
   if (addBtn){
     if (isSweep || championId){
