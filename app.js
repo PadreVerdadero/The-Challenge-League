@@ -32,6 +32,7 @@ let playersOrderArr = [];
 let timerEnd = null;
 let timerInterval = null;
 let isSweep = false;
+let currentChallengerId = null;
 
 const $ = id => document.getElementById(id);
 
@@ -135,16 +136,24 @@ function renderChampionActions(){
   const area = $('champion-actions-area'); if (!area) return;
   area.innerHTML = '';
 
-  if (isSweep && championId){
-    const btn = document.createElement('button');
-    btn.textContent = 'Clear Champion (end sweep)';
-    btn.addEventListener('click', async ()=>{
-      await set(ref(db,'championId'), null);
-      await remove(ref(db,'defeats'));
-      await remove(ref(db,'timer/endTimestamp'));
-      isSweep = false;
-      renderAll();
-    });
+if (isSweep && championId){
+  const btn = document.createElement('button');
+  btn.textContent = 'Clear Champion (end sweep)';
+  btn.addEventListener('click', async ()=>{
+    // reset champion and challenger state and clear defeats/timer
+    await set(ref(db,'championId'), null);
+    await remove(ref(db,'defeats'));
+    await remove(ref(db,'timer/endTimestamp'));
+    isSweep = false;
+    currentChallengerId = null;
+
+    // ensure playersOrderArr contains all players in a sensible order
+    const allIds = Object.keys(players || {});
+    playersOrderArr = allIds.slice();
+    await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+
+    renderAll();
+  });
     area.appendChild(btn);
   } else if (!championId){
     const btn = document.createElement('button');
@@ -171,6 +180,13 @@ function renderChallengeSection(){
   const nextUpId = ordered.find(id => id && id !== championId && players[id]) || null;
   const nextUpName = nextUpId ? (players[nextUpId]?.name || 'Unknown') : 'No one';
 
+  // Set global current challenger so roster can hide them
+  if (!isSweep && championId && nextUpId) {
+    currentChallengerId = nextUpId;
+  } else {
+    currentChallengerId = null;
+  }
+
   const row = document.createElement('div'); row.className = 'next-up-row';
   const name = document.createElement('div'); name.className = 'next-up-name'; name.textContent = nextUpName;
   row.appendChild(name);
@@ -181,7 +197,11 @@ function renderChallengeSection(){
   if (!nextUpId || !championId || isSweep) {
     btn.disabled = true;
   } else {
-    btn.addEventListener('click', ()=>{ openChallengeModal(nextUpId); });
+    btn.addEventListener('click', ()=>{ 
+      // ensure global challenger is set when modal opens
+      currentChallengerId = nextUpId;
+      openChallengeModal(nextUpId); 
+    });
   }
   row.appendChild(btn);
 
@@ -203,7 +223,7 @@ function renderRoster(){
   }
 
   const orderedIds = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
-  const visibleIds = orderedIds.filter(id => id !== championId && players[id]);
+  const visibleIds = orderedIds.filter(id => id !== championId && id !== currentChallengerId && players[id]);
 
   visibleIds.forEach((id, position)=>{
     const p = players[id]; if (!p) return;
@@ -360,8 +380,12 @@ function openChallengeModal(challengerId){
   modal.appendChild(panel);
   document.body.appendChild(modal);
 
-  function closeModal(){ const m=$('challenge-modal'); if(m) m.remove(); }
+function closeModal(){ 
+  const m=$('challenge-modal'); if(m) m.remove();
+  currentChallengerId = null;
+  renderAll();
 }
+
 
 // --- Challenge submission ---
 async function submitChallenge(challengerId, description, winnerId){
@@ -408,6 +432,7 @@ async function submitChallenge(challengerId, description, winnerId){
     }
 
     isSweep = computeSweep();
+    currentChallengerId = null;
     renderAll();
   } catch (e) {
     console.error('submitChallenge error', e);
