@@ -66,17 +66,44 @@ function startLocalCountdown(){
 // --- Confetti ---
 function triggerConfetti(){
   const canvas = $('confetti-canvas'); if (!canvas) return;
-  const ctx = canvas.getContext('2d'); canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-  const parts = []; const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'];
-  for (let i=0;i<80;i++){ parts.push({x: Math.random()*canvas.width, y: -50 - Math.random()*200, vx:(Math.random()-0.5)*6, vy:2+Math.random()*6, size:6+Math.random()*8, c: colors[Math.floor(Math.random()*colors.length)], life:0}); }
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const parts = [];
+  const colors = ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'];
+
+  for (let i=0;i<80;i++){
+    parts.push({
+      x: Math.random()*canvas.width,
+      y: -50 - Math.random()*200,
+      vx:(Math.random()-0.5)*6,
+      vy:2+Math.random()*6,
+      size:6+Math.random()*8,
+      c: colors[Math.floor(Math.random()*colors.length)],
+      life:0
+    });
+  }
+
   let frame = 0;
   function draw(){
-    frame++; ctx.clearRect(0,0,canvas.width,canvas.height);
-    parts.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=0.06; ctx.fillStyle=p.c; ctx.fillRect(p.x,p.y,p.size,p.size*0.6); });
-    if (frame < 120) requestAnimationFrame(draw); else ctx.clearRect(0,0,canvas.width,canvas.height);
+    frame++;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    parts.forEach(p=>{
+      p.x+=p.vx;
+      p.y+=p.vy;
+      p.vy+=0.06;
+      ctx.fillStyle=p.c;
+      ctx.fillRect(p.x,p.y,p.size,p.size*0.6);
+    });
+    if (frame < 120) {
+      requestAnimationFrame(draw);
+    } else {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+    }
   }
   draw();
-}
+}   // <-- make sure this closing brace is here
 
 // --- Sweep helper ---
 function computeSweep(){
@@ -84,6 +111,7 @@ function computeSweep(){
   const allIds = Object.keys(players || {});
   const challengers = allIds.filter(id => id !== championId);
   if (challengers.length === 0) return false;
+  // Sweep = every challenger is marked defeated
   return challengers.every(id => defeated.has(id));
 }
 // --- Champion rendering ---
