@@ -326,6 +326,62 @@ function renderMatchHistory(){
     el.appendChild(div);
   });
 }
+// --- Champion fire and sweep explosion helpers ---
+
+// Create temporary fire element behind champion name, auto-removes after duration
+function triggerChampionFire() {
+  const champEl = document.querySelector('.champ-name');
+  if (!champEl) return;
+  if (!champEl.classList.contains('champ-fire-wrap')) {
+    champEl.classList.add('champ-fire-wrap');
+  }
+  const fire = document.createElement('div');
+  fire.className = 'champ-fire';
+  for (let i = 0; i < 5; i++){
+    const f = document.createElement('div');
+    f.className = 'flame';
+    fire.appendChild(f);
+  }
+  champEl.parentElement.style.position = champEl.parentElement.style.position || 'relative';
+  champEl.parentElement.appendChild(fire);
+
+  setTimeout(()=> {
+    fire.remove();
+  }, 2400);
+}
+
+// Explosion animation for sweep: flash + particle burst
+function triggerSweepExplosion() {
+  const overlay = document.createElement('div');
+  overlay.className = 'explosion-overlay';
+
+  const flash = document.createElement('div');
+  flash.className = 'explosion-flash';
+  overlay.appendChild(flash);
+
+  const particleCount = 22;
+  for (let i=0;i<particleCount;i++){
+    const p = document.createElement('div');
+    p.className = 'explosion-particle';
+    const angle = (Math.PI*2) * (i/particleCount + (Math.random()-0.5)*0.06);
+    const dist = 120 + Math.random()*260;
+    const dx = Math.cos(angle) * dist + 'px';
+    const dy = Math.sin(angle) * dist + 'px';
+    p.style.setProperty('--dx', dx);
+    p.style.setProperty('--dy', dy);
+    const s = 6 + Math.random()*10;
+    p.style.width = `${s}px`;
+    p.style.height = `${s}px`;
+    p.style.left = `calc(50% + ${(Math.random()-0.5)*40}px)`;
+    p.style.top = `calc(40% + ${(Math.random()-0.5)*40}px)`;
+    p.style.animationDelay = `${Math.random()*120}ms`;
+    overlay.appendChild(p);
+  }
+
+  document.body.appendChild(overlay);
+  setTimeout(()=> overlay.remove(), 900);
+}
+
 // --- Challenge modal ---
 function openChallengeModal(challengerId){
   if (!championId) return;
@@ -430,6 +486,8 @@ async function submitChallenge(challengerId, description, winnerId){
         playersOrderArr.push(challengerId);
         await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
       }
+      // Champion won this challenge — visual fire
+      triggerChampionFire();
     }
 
     isSweep = computeSweep();
@@ -497,6 +555,7 @@ onValue(ref(db, 'defeats'), snap=>{
   isSweep = computeSweep();
   if (isSweep && !prev){
     console.log('Sweep detected for champion', championId);
+    triggerSweepExplosion();
   }
   renderAll();
 });
