@@ -441,9 +441,14 @@ onValue(ref(db, 'players'), snap=>{
 
 onValue(ref(db, 'playersOrder'), snap=>{
   const val = snap.val();
-  if (!val) playersOrderArr = [];
-  else playersOrderArr = Object.entries(val).map(([k,id])=>({idx:Number(k),id}))
-    .sort((a,b)=>a.idx-b.idx).map.sort((a,b)=>a.idx-b.idx).map(e=>e.id);
+  if (!val) {
+    playersOrderArr = [];
+  } else {
+    playersOrderArr = Object.entries(val)
+      .map(([k,id]) => ({ idx:Number(k), id }))
+      .sort((a,b)=>a.idx-b.idx)
+      .map(e => e.id);   // <-- correct
+  }
   renderAll();
 });
 
