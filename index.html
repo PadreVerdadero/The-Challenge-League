@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Challenge League</title>
 
+  <!-- Cache-busted stylesheet -->
   <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
@@ -12,11 +13,13 @@
     <header><h1>Challenge League</h1></header>
 
     <section class="top-row">
+      <!-- Champion card -->
       <aside class="left-col">
         <div id="champion-card" class="card"></div>
         <div id="challenge-section" class="card"></div>
       </aside>
 
+      <!-- Middle column: roster, add player, match history -->
       <section class="middle-col">
         <div id="roster" class="card"></div>
 
@@ -29,14 +32,17 @@
         <div id="match-list" class="card history"></div>
       </section>
 
+      <!-- Right column: champion board removed -->
       <aside class="right-col">
-        <!-- Champion board removed per request -->
+        <!-- intentionally left blank -->
       </aside>
     </section>
 
+    <!-- Confetti canvas -->
     <canvas id="confetti-canvas" class="confetti" aria-hidden="true"></canvas>
   </main>
 
+  <!-- Firebase app logic -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
