@@ -77,6 +77,15 @@ function triggerConfetti(){
   }
   draw();
 }
+
+// --- Sweep helper ---
+function computeSweep(){
+  if (!championId) return false;
+  const allIds = Object.keys(players || {});
+  const challengers = allIds.filter(id => id !== championId);
+  if (challengers.length === 0) return false;
+  return challengers.every(id => defeated.has(id));
+}
 // --- Champion rendering ---
 function renderChampion(){
   const el = $('champion-card'); if (!el) return;
@@ -173,16 +182,16 @@ function renderRoster(){
     const row = document.createElement('div'); row.className='roster-row';
     const handle = document.createElement('div'); handle.className='order-handle'; handle.textContent='☰';
 
-const nameBtn = document.createElement('button');
-nameBtn.className='roster-name';
-nameBtn.textContent = p.name;
+    const nameBtn = document.createElement('button');
+    nameBtn.className='roster-name';
+    nameBtn.textContent = p.name;
 
-// color by defeat status
-if (defeated.has(id)) {
-  nameBtn.classList.add('defeated');
-} else {
-  nameBtn.classList.add('active');
-}
+    // color by defeat status
+    if (defeated.has(id)) {
+      nameBtn.classList.add('defeated');   // red
+    } else {
+      nameBtn.classList.add('active');     // blue
+    }
 
     // Only allow remove when Add Player button is enabled
     const addBtn = $('add-player-button');
@@ -375,13 +384,9 @@ async function submitChallenge(challengerId, description, winnerId){
         await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
       }
     }
-function computeSweep(){
-  if (!championId) return false;
-  const allIds = Object.keys(players || {});
-  const challengers = allIds.filter(id => id !== championId);
-  if (challengers.length === 0) return false;
-  return challengers.every(id => defeated.has(id));
-}
+
+    // recompute sweep after each match
+    isSweep = computeSweep();
     renderAll();
   } catch (e) {
     console.error('submitChallenge error', e);
@@ -410,14 +415,11 @@ $('add-player-button')?.addEventListener('click', addPlayer);
 onValue(ref(db, 'players'), snap=>{
   players = snap.val() || {};
   const allIds = Object.keys(players);
-  // keep order array in sync
   playersOrderArr = playersOrderArr.filter(pid => allIds.includes(pid));
   allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
-  // recompute sweep
-  isSweep = computeSweep();
+  isSweep = computeSweep();   // recompute sweep
   renderAll();
 });
-
 
 onValue(ref(db, 'playersOrder'), snap=>{
   const val = snap.val();
@@ -429,11 +431,9 @@ onValue(ref(db, 'playersOrder'), snap=>{
 
 onValue(ref(db, 'championId'), snap=>{
   championId = snap.val();
-  // recompute sweep
-  isSweep = computeSweep();
+  isSweep = computeSweep();   // recompute sweep
   renderAll();
 });
-
 
 onValue(ref(db, 'matches'), snap=>{
   matches = Object.values(snap.val() || {});
@@ -442,8 +442,7 @@ onValue(ref(db, 'matches'), snap=>{
 
 onValue(ref(db, 'defeats'), snap=>{
   defeated = new Set(Object.keys(snap.val() || {}));
-  // recompute sweep
-  isSweep = computeSweep();
+  isSweep = computeSweep();   // recompute sweep
   renderAll();
 });
 
