@@ -5,8 +5,51 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Challenge League</title>
 
-  <!-- External stylesheet (cache-busted) -->
-  <link rel="stylesheet" href="styles.css?v=1" />
+  <!-- Cache-busted stylesheet so browsers fetch newest CSS after push -->
+  <link rel="stylesheet" href="styles.css?v=4" />
+
+  <!-- Inline critical styles as fallback to ensure UI looks correct even if external CSS 404s -->
+  <style>
+    :root{
+      --bg:#071027; --card:#0b1220; --muted:#98a0b3; --accent:#1f6feb;
+      --success:#2b8a3e; --danger:#ff4d4f; --glass: rgba(255,255,255,0.03);
+      --radius:12px; --gap:16px; --text:#e6eef8;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter,Segoe UI,system-ui,Helvetica,Arial,sans-serif;
+      background: linear-gradient(180deg,#071027 0%, #071a2b 100%);
+      color:var(--text); padding:20px;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+    .container{ max-width:1200px; margin:0 auto; }
+    header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
+    .top-row{ display:grid; grid-template-columns: 300px 1fr 260px; gap:var(--gap); align-items:start; }
+    .card{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:var(--radius); padding:14px; box-shadow: 0 6px 18px rgba(3,6,12,0.5); border: 1px solid rgba(255,255,255,0.03); }
+
+    .champ-name{ display:inline-block; background: linear-gradient(90deg,#ffdf8b,#ffd34d); color:#2b1b00; padding:8px 12px; border-radius:10px; font-weight:900; font-size:32px; letter-spacing:0.6px; box-shadow: 0 6px 20px rgba(255,211,77,0.12), inset 0 -2px 0 rgba(0,0,0,0.06); }
+    .champ-name.no-champ{ background:transparent; color:var(--muted); font-size:18px; padding:0; box-shadow:none; }
+
+    .next-up-name{ font-size:30px; font-weight:800; color:var(--accent); display:inline-block; }
+    .challenger-badge{ display:inline-block; background: var(--danger); color:#fff; font-size:12px; font-weight:700; padding:4px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; }
+
+    .roster-row{ display:flex; align-items:center; gap:8px; padding:8px 6px; border-radius:8px; margin-bottom:8px; background:var(--glass); }
+    .order-handle{ width:28px; text-align:center; color:var(--muted); cursor:grab; user-select:none; }
+    .roster-name{ flex:1; text-align:left; background: linear-gradient(90deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.03); color:var(--text); font-size:15px; padding:8px 12px; border-radius:8px; cursor:pointer; }
+    .roster-name.challenger{ background: linear-gradient(90deg,#4da6ff,#1f6feb); color:#fff; font-weight:800; }
+    .roster-name.lost{ background: linear-gradient(90deg,#ffb5b5,#ff7b7b); color:#fff; font-weight:700; text-decoration:line-through; opacity:0.98; }
+
+    .add-player{ display:flex; gap:8px; align-items:center; margin-top:10px; }
+    .add-player input{ flex:1; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:var(--text); }
+    .add-player button{ padding:8px 12px; border-radius:8px; border:none; background:var(--accent); color:#fff; cursor:pointer; }
+
+    .match-desc{ color:var(--muted); font-size:13px; margin-left:18px; margin-bottom:6px; }
+    .confetti{ position:fixed; left:0; top:0; pointer-events:none; z-index:9999; }
+    button{ font-family:inherit; cursor:pointer; }
+
+    @media (max-width:900px){ .top-row{ grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
   <main class="container">
