@@ -143,7 +143,6 @@ function renderRoster(){
     const row = document.createElement('div'); row.className='roster-row';
     const handle = document.createElement('div'); handle.className='order-handle'; handle.textContent='☰';
     const nameBtn = document.createElement('button'); nameBtn.className='roster-name'; nameBtn.textContent=p.name;
-    // Only allow remove when add-player is enabled
     const addBtn = $('add-player-button');
     if (addBtn && !addBtn.disabled){
       nameBtn.addEventListener('click', async ()=>{
@@ -158,4 +157,4 @@ function renderRoster(){
       const up=document.createElement('button'); up.className='move-btn'; up.textContent='↑'; up.disabled=movesDisabled||(position===0);
       up.addEventListener('click',async(e)=>{e.stopPropagation(); if(movesDisabled)return; const idx=playersOrderArr.indexOf(id); if(idx>0){[playersOrderArr[idx-1],playersOrderArr[idx]]=[playersOrderArr[idx],playersOrderArr[idx-1]]; await set(ref(db,'playersOrder'),Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));}});
       const down=document.createElement('button'); down.className='move-btn'; down.textContent='↓'; down.disabled=movesDisabled||(position===visibleIds.length-1);
-      down.addEventListener('click',async(e)=>{e.stopPropagation(); if(movesDisabled)return; const idx=playersOrderArr
+      down.addEventListener('click',async(e)=>{e.stopPropagation();
