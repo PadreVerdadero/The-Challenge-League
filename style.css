@@ -103,9 +103,10 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
   box-shadow: 0 6px 18px rgba(255,75,75,0.08);
 }
 
-.roster-name[disabled]{ opacity:0.85; cursor:not-allowed; }
+/* Disabled move buttons look */
 .move-btn, .roster-row > button{ background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--muted); padding:6px 8px; border-radius:6px; cursor:pointer; }
-.move-btn:disabled{ opacity:0.45; cursor:not-allowed; }
+.move-btn[disabled]{ opacity:0.35; cursor:not-allowed; color:rgba(255,255,255,0.35); border-color: rgba(255,255,255,0.02); }
+.move-btn:disabled{ pointer-events:none; }
 
 .add-player{ display:flex; gap:8px; align-items:center; margin-top:10px; }
 .add-player input{ flex:1; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:var(--text); }
@@ -114,10 +115,6 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
 
 .history h2{ margin:0 0 8px 0; }
 .match-desc{ color:var(--muted); font-size:13px; margin-left:18px; margin-bottom:6px; }
-
-#champion-board-list h2{ margin:0 0 8px 0; }
-.champion-board-name{ font-weight:600; margin-right:8px; }
-.champion-board-time{ color:var(--muted); font-size:12px; }
 
 .confetti{ position:fixed; left:0; top:0; pointer-events:none; z-index:9999; }
 button{ font-family:inherit; cursor:pointer; }
