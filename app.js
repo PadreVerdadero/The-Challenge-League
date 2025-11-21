@@ -114,6 +114,9 @@ function computeSweep(){
   return challengers.every(id => defeated.has(id));
 }
 
+// Expose for console testing
+window.computeSweep = computeSweep;
+
 // --- Champion rendering ---
 function renderChampion(){
   const el = $('champion-card'); if (!el) return;
