@@ -69,15 +69,7 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
 
 /* Roster */
 #roster h2{ margin:0 0 8px 0; font-size:16px; }
-.roster-row{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:8px 6px;
-  border-radius:8px;
-  margin-bottom:8px;
-  background:var(--glass);
-}
+.roster-row{ display:flex; align-items:center; gap:8px; padding:8px 6px; border-radius:8px; margin-bottom:8px; background:var(--glass); }
 .order-handle{ width:28px; text-align:center; color:var(--muted); cursor:grab; user-select:none; }
 
 /* Roster name button-like */
@@ -112,14 +104,7 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
 }
 
 .roster-name[disabled]{ opacity:0.85; cursor:not-allowed; }
-.move-btn, .roster-row > button{
-  background:transparent;
-  border:1px solid rgba(255,255,255,0.04);
-  color:var(--muted);
-  padding:6px 8px;
-  border-radius:6px;
-  cursor:pointer;
-}
+.move-btn, .roster-row > button{ background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--muted); padding:6px 8px; border-radius:6px; cursor:pointer; }
 .move-btn:disabled{ opacity:0.45; cursor:not-allowed; }
 
 .add-player{ display:flex; gap:8px; align-items:center; margin-top:10px; }
@@ -135,9 +120,6 @@ header h1{ margin:0 0 18px 0; font-size:20px; color:var(--text); }
 .champion-board-time{ color:var(--muted); font-size:12px; }
 
 .confetti{ position:fixed; left:0; top:0; pointer-events:none; z-index:9999; }
-
 button{ font-family:inherit; cursor:pointer; }
 
-@media (max-width:900px){
-  .top-row{ grid-template-columns: 1fr; }
-}
+@media (max-width:900px){ .top-row{ grid-template-columns: 1fr; } }
