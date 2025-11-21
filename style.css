@@ -108,8 +108,18 @@ h2{
   color: var(--text);
   cursor:pointer;
 }
-.roster-name.active{ color: var(--accent); border-color:#2a3a5a; }
-.roster-name.defeated{ color:#8893a3; text-decoration: line-through; }
+/* Active (not defeated) = blue */
+.roster-name.active {
+  color: #1f6feb;        /* Blue */
+  border-color: #2a3a5a; /* Subtle blue border */
+}
+
+/* Defeated = red */
+.roster-name.defeated {
+  color: #e53935;        /* Red */
+  text-decoration: none; /* Remove strike-through for clarity */
+  border-color: #5a2a2a; /* Subtle red border */
+}
 
 .move-btn{
   padding:4px 8px;
