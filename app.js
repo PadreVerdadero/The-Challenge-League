@@ -33,7 +33,7 @@ let timerEnd = null;
 let timerInterval = null;
 let isSweep = false;
 let currentChallengerId = null;
-window._currentChallengerId = () => currentChallengerId; // debug helper
+window._currentChallengerId = () => currentChallengerId;
 
 const $ = id => document.getElementById(id);
 
@@ -116,8 +116,8 @@ function computeSweep(){
   return challengers.every(id => defeated.has(id));
 }
 
-// Expose for console testing
-window.computeSweep = computeSweep;
+// Expose for console testing (only if defined)
+if (typeof computeSweep === 'function') window.computeSweep = computeSweep;
 
 // --- Champion rendering ---
 function renderChampion(){
@@ -137,24 +137,22 @@ function renderChampionActions(){
   const area = $('champion-actions-area'); if (!area) return;
   area.innerHTML = '';
 
-if (isSweep && championId){
-  const btn = document.createElement('button');
-  btn.textContent = 'Clear Champion (end sweep)';
-  btn.addEventListener('click', async ()=>{
-    // reset champion and challenger state and clear defeats/timer
-    await set(ref(db,'championId'), null);
-    await remove(ref(db,'defeats'));
-    await remove(ref(db,'timer/endTimestamp'));
-    isSweep = false;
-    currentChallengerId = null;
+  if (isSweep && championId){
+    const btn = document.createElement('button');
+    btn.textContent = 'Clear Champion (end sweep)';
+    btn.addEventListener('click', async ()=>{
+      await set(ref(db,'championId'), null);
+      await remove(ref(db,'defeats'));
+      await remove(ref(db,'timer/endTimestamp'));
+      isSweep = false;
+      currentChallengerId = null;
 
-    // ensure playersOrderArr contains all players in a sensible order
-    const allIds = Object.keys(players || {});
-    playersOrderArr = allIds.slice();
-    await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+      const allIds = Object.keys(players || {});
+      playersOrderArr = allIds.slice();
+      await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
 
-    renderAll();
-  });
+      renderAll();
+    });
     area.appendChild(btn);
   } else if (!championId){
     const btn = document.createElement('button');
@@ -171,26 +169,22 @@ if (isSweep && championId){
     area.appendChild(btn);
   }
 }
-
 // --- Challenge section ---
 function renderChallengeSection(){
   const el = $('challenge-section'); if (!el) return;
   el.innerHTML = `<h2>Challenger</h2>`;
 
-  // derive ordered list and next challenger (first non-champion in order)
   const ordered = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
   const nextUpId = ordered.find(id => id && id !== championId && players[id]) || null;
   const nextUpName = nextUpId ? (players[nextUpId]?.name || 'Unknown') : 'No one';
 
-  // Always set global challenger to the computed nextUpId when champion exists and no sweep
   if (championId && !isSweep && nextUpId) {
     currentChallengerId = nextUpId;
   } else {
     currentChallengerId = null;
   }
-  window._currentChallengerId = () => currentChallengerId; // keep debug helper in sync
+  window._currentChallengerId = () => currentChallengerId;
 
-  // Build UI
   const row = document.createElement('div'); row.className = 'next-up-row';
   const name = document.createElement('div'); name.className = 'next-up-name'; name.textContent = nextUpName;
   row.appendChild(name);
@@ -203,11 +197,10 @@ function renderChallengeSection(){
   } else {
     btn.disabled = false;
     btn.onclick = () => {
-      // ensure challenger is set right before opening modal
       currentChallengerId = nextUpId;
       window._currentChallengerId = () => currentChallengerId;
       openChallengeModal(nextUpId);
-      renderAll(); // force roster update so challenger disappears immediately
+      renderAll();
     };
   }
   row.appendChild(btn);
@@ -296,6 +289,7 @@ function renderRoster(){
     el.appendChild(row);
   });
 }
+
 // --- Match History rendering ---
 function renderMatchHistory(){
   const el = $('match-list'); if (!el) return;
@@ -322,17 +316,16 @@ function renderMatchHistory(){
       div.innerHTML = `🏆 Winner - ${m.winnerName} (Sweep) ${time ? `(${time})` : ''}`;
     } else {
       div.innerHTML = `🏁 <strong>${m.challengerName||'Unknown'}</strong> vs <strong>${m.championName||'Unknown'}</strong> — Winner: <strong>${m.winnerName||'Unknown'}</strong> ${time ? `(${time})` : ''}`;
-      if (m.description){ 
-        const d = document.createElement('div'); 
-        d.className='match-desc'; 
-        d.textContent = m.description; 
-        el.appendChild(d); 
+      if (m.description){
+        const d = document.createElement('div');
+        d.className='match-desc';
+        d.textContent = m.description;
+        el.appendChild(d);
       }
     }
     el.appendChild(div);
   });
 }
-
 // --- Challenge modal ---
 function openChallengeModal(challengerId){
   if (!championId) return;
@@ -387,13 +380,13 @@ function openChallengeModal(challengerId){
   modal.appendChild(panel);
   document.body.appendChild(modal);
 
-function closeModal(){ 
-  const m=$('challenge-modal'); if(m) m.remove();
-  currentChallengerId = null;
-  window._currentChallengerId = () => currentChallengerId;
-  renderAll();
+  function closeModal(){
+    const m=$('challenge-modal'); if(m) m.remove();
+    currentChallengerId = null;
+    window._currentChallengerId = () => currentChallengerId;
+    renderAll();
+  }
 }
-
 
 // --- Challenge submission ---
 async function submitChallenge(challengerId, description, winnerId){
@@ -451,7 +444,7 @@ async function submitChallenge(challengerId, description, winnerId){
 async function addPlayer(){
   const input = $('new-player-name'); if (!input) return;
   const name = input.value.trim(); if (!name) return alert('Enter a name');
-  const id = name.toLowerCase().replace(/\s+/g,'-');
+  const id = name.toLowerCase().trim().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'');
   try {
     await set(ref(db, `players/${id}`), { name });
     if (!playersOrderArr.includes(id)){
@@ -465,7 +458,7 @@ async function addPlayer(){
 }
 $('add-player-button')?.addEventListener('click', addPlayer);
 
-// --- Firebase listeners (ensure these are present and closed) ---
+// --- Firebase listeners ---
 onValue(ref(db, 'players'), snap=>{
   players = snap.val() || {};
   const allIds = Object.keys(players);
@@ -479,6 +472,7 @@ onValue(ref(db, 'playersOrder'), snap=>{
   const val = snap.val();
   if (!val) playersOrderArr = [];
   else playersOrderArr = Object.entries(val).map(([k,id])=>({idx:Number(k),id}))
+    .filter(x => x.id)
     .sort((a,b)=>a.idx-b.idx).map(e=>e.id);
   renderAll();
 });
@@ -509,10 +503,10 @@ onValue(ref(db, 'defeats'), snap=>{
 
 onValue(ref(db, 'timer/endTimestamp'), snap=>{
   timerEnd = snap.val() || null;
-  if (timerEnd){ 
-    startLocalCountdown(); 
-  } else { 
-    updateTimerDisplay(); 
+  if (timerEnd){
+    startLocalCountdown();
+  } else {
+    updateTimerDisplay();
   }
 });
 
@@ -529,11 +523,7 @@ function renderAll(){
   }
 }
 
-// Expose computeSweep for quick console checks (temporary)
-window.computeSweep = typeof computeSweep === 'function' ? computeSweep : ()=>{ console.warn('computeSweep not defined'); return false; };
-
 // --- Initial mount ---
 document.addEventListener('DOMContentLoaded', ()=>{
   renderAll();
 });
-}
