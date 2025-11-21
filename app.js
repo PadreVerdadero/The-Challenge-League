@@ -465,7 +465,7 @@ async function addPlayer(){
 }
 $('add-player-button')?.addEventListener('click', addPlayer);
 
-// --- Firebase listeners ---
+// --- Firebase listeners (ensure these are present and closed) ---
 onValue(ref(db, 'players'), snap=>{
   players = snap.val() || {};
   const allIds = Object.keys(players);
@@ -477,14 +477,9 @@ onValue(ref(db, 'players'), snap=>{
 
 onValue(ref(db, 'playersOrder'), snap=>{
   const val = snap.val();
-  if (!val) {
-    playersOrderArr = [];
-  } else {
-    playersOrderArr = Object.entries(val)
-      .map(([k,id]) => ({ idx:Number(k), id }))
-      .sort((a,b)=>a.idx-b.idx)
-      .map(e => e.id);   // <-- correct
-  }
+  if (!val) playersOrderArr = [];
+  else playersOrderArr = Object.entries(val).map(([k,id])=>({idx:Number(k),id}))
+    .sort((a,b)=>a.idx-b.idx).map(e=>e.id);
   renderAll();
 });
 
@@ -500,8 +495,15 @@ onValue(ref(db, 'matches'), snap=>{
 });
 
 onValue(ref(db, 'defeats'), snap=>{
-  defeated = new Set(Object.keys(snap.val() || {}));
+  const val = snap.val() || {};
+  window._lastDefeatsSnap = val;
+  const keys = typeof val === 'object' ? Object.keys(val) : [];
+  defeated = new Set(keys);
+  const prev = isSweep;
   isSweep = computeSweep();
+  if (isSweep && !prev){
+    console.log('Sweep detected for champion', championId);
+  }
   renderAll();
 });
 
@@ -523,13 +525,12 @@ function renderAll(){
 
   const addBtn = $('add-player-button');
   if (addBtn){
-    if (isSweep || championId){
-      addBtn.disabled = true;
-    } else {
-      addBtn.disabled = false;
-    }
+    addBtn.disabled = Boolean(isSweep || championId);
   }
 }
+
+// Expose computeSweep for quick console checks (temporary)
+window.computeSweep = typeof computeSweep === 'function' ? computeSweep : ()=>{ console.warn('computeSweep not defined'); return false; };
 
 // --- Initial mount ---
 document.addEventListener('DOMContentLoaded', ()=>{
