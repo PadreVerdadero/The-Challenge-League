@@ -33,6 +33,7 @@ let timerEnd = null;
 let timerInterval = null;
 let isSweep = false;
 let currentChallengerId = null;
+window._currentChallengerId = () => currentChallengerId; // debug helper
 
 const $ = id => document.getElementById(id);
 
@@ -176,17 +177,20 @@ function renderChallengeSection(){
   const el = $('challenge-section'); if (!el) return;
   el.innerHTML = `<h2>Challenger</h2>`;
 
+  // derive ordered list and next challenger (first non-champion in order)
   const ordered = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
   const nextUpId = ordered.find(id => id && id !== championId && players[id]) || null;
   const nextUpName = nextUpId ? (players[nextUpId]?.name || 'Unknown') : 'No one';
 
-  // Set global current challenger so roster can hide them
-  if (!isSweep && championId && nextUpId) {
+  // Always set global challenger to the computed nextUpId when champion exists and no sweep
+  if (championId && !isSweep && nextUpId) {
     currentChallengerId = nextUpId;
   } else {
     currentChallengerId = null;
   }
+  window._currentChallengerId = () => currentChallengerId; // keep debug helper in sync
 
+  // Build UI
   const row = document.createElement('div'); row.className = 'next-up-row';
   const name = document.createElement('div'); name.className = 'next-up-name'; name.textContent = nextUpName;
   row.appendChild(name);
@@ -197,11 +201,14 @@ function renderChallengeSection(){
   if (!nextUpId || !championId || isSweep) {
     btn.disabled = true;
   } else {
-    btn.addEventListener('click', ()=>{ 
-      // ensure global challenger is set when modal opens
+    btn.disabled = false;
+    btn.onclick = () => {
+      // ensure challenger is set right before opening modal
       currentChallengerId = nextUpId;
-      openChallengeModal(nextUpId); 
-    });
+      window._currentChallengerId = () => currentChallengerId;
+      openChallengeModal(nextUpId);
+      renderAll(); // force roster update so challenger disappears immediately
+    };
   }
   row.appendChild(btn);
 
@@ -250,9 +257,10 @@ function renderRoster(){
       });
     }
 
-    row.append(handle,nameBtn);
+    row.append(handle, nameBtn);
 
     const movesDisabled = Boolean(championId);
+
     if (visibleIds.length > 1){
       const up = document.createElement('button');
       up.className = 'move-btn';
@@ -288,7 +296,6 @@ function renderRoster(){
     el.appendChild(row);
   });
 }
-
 // --- Match History rendering ---
 function renderMatchHistory(){
   const el = $('match-list'); if (!el) return;
@@ -383,6 +390,7 @@ function openChallengeModal(challengerId){
 function closeModal(){ 
   const m=$('challenge-modal'); if(m) m.remove();
   currentChallengerId = null;
+  window._currentChallengerId = () => currentChallengerId;
   renderAll();
 }
 
