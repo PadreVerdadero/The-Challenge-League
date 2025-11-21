@@ -410,11 +410,14 @@ $('add-player-button')?.addEventListener('click', addPlayer);
 onValue(ref(db, 'players'), snap=>{
   players = snap.val() || {};
   const allIds = Object.keys(players);
-  allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
+  // keep order array in sync
   playersOrderArr = playersOrderArr.filter(pid => allIds.includes(pid));
-  renderAll();
+  allIds.forEach(pid => { if (!playersOrderArr.includes(pid)) playersOrderArr.push(pid); });
+  // recompute sweep
   isSweep = computeSweep();
+  renderAll();
 });
+
 
 onValue(ref(db, 'playersOrder'), snap=>{
   const val = snap.val();
@@ -426,9 +429,11 @@ onValue(ref(db, 'playersOrder'), snap=>{
 
 onValue(ref(db, 'championId'), snap=>{
   championId = snap.val();
-  renderAll();
+  // recompute sweep
   isSweep = computeSweep();
+  renderAll();
 });
+
 
 onValue(ref(db, 'matches'), snap=>{
   matches = Object.values(snap.val() || {});
@@ -437,7 +442,8 @@ onValue(ref(db, 'matches'), snap=>{
 
 onValue(ref(db, 'defeats'), snap=>{
   defeated = new Set(Object.keys(snap.val() || {}));
-  isSweep = computeSweep();   // recompute sweep
+  // recompute sweep
+  isSweep = computeSweep();
   renderAll();
 });
 
