@@ -5,19 +5,21 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Challenge League</title>
 
-  <!-- Direct link to raw file on GitHub -->
-  <link rel="stylesheet" href="https://raw.githubusercontent.com/PadreVerdadero/The-Challenge-League/refs/heads/main/style.css" />
+  <!-- Correct GitHub Pages link to CSS -->
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
   <main class="container">
     <header><h1>Challenge League</h1></header>
 
     <section class="top-row">
+      <!-- Champion card -->
       <aside class="left-col">
         <div id="champion-card" class="card"></div>
         <div id="challenge-section" class="card"></div>
       </aside>
 
+      <!-- Middle column: roster, add player, match history -->
       <section class="middle-col">
         <div id="roster" class="card"></div>
 
@@ -30,14 +32,17 @@
         <div id="match-list" class="card history"></div>
       </section>
 
+      <!-- Right column: champion board removed -->
       <aside class="right-col">
         <!-- intentionally left blank -->
       </aside>
     </section>
 
+    <!-- Confetti canvas -->
     <canvas id="confetti-canvas" class="confetti" aria-hidden="true"></canvas>
   </main>
 
+  <!-- Firebase app logic -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
