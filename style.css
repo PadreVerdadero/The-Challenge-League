@@ -4,34 +4,23 @@
   --muted:#9fb3c8;
   --accent:#1f6feb;
   --success:#2b8a3e;
-  --danger:#c83a3a;
-  --card:#11172a;
+  --danger:#e53935;
+  --card:#0e1628;
   --border:#263249;
 }
 
+/* Reset / base */
 *{ box-sizing:border-box; }
-html,body{ height:100%; }
-
+html,body{ height:100%; margin:0; padding:0; }
 body{
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans";
   background-color: var(--bg);
   color: var(--text);
-  margin:0;
   padding:24px;
   line-height:1.35;
 }
 
-h1{
-  margin:0 0 16px;
-  font-size:28px;
-}
-
-h2{
-  margin:24px 0 8px;
-  font-size:20px;
-  color: var(--muted);
-}
-
+/* Layout cards */
 .card{
   background: var(--card);
   border: 1px solid var(--border);
@@ -40,90 +29,123 @@ h2{
   margin-bottom:12px;
 }
 
-/* Champion */
-#champion-card .champ-name{
-  font-weight:600;
-  font-size:18px;
+/* Headings */
+h1{ margin:0 0 16px; font-size:28px; }
+h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
+
+/* Champion — big, yellow, prominent */
+.champ-name {
+  display: inline-block;
+  font-size: 32px;
+  font-weight: 800;
+  color: #ffd84d;
+  background: linear-gradient(180deg, rgba(255,216,77,0.06), rgba(255,216,77,0.02));
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,216,77,0.12);
+  box-shadow: 0 8px 24px rgba(255,216,77,0.04);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.25);
+  line-height:1;
+  z-index:2;
+  position:relative;
 }
-#champion-card .no-champ{
-  color: var(--muted);
+.champ-name.no-champ {
+  font-size:16px;
+  font-weight:600;
+  color:var(--muted);
+  background:transparent;
+  border:none;
+  box-shadow:none;
+  padding:0;
+}
+
+/* Champion fire wrapper (used by JS) */
+.champ-fire-wrap { position: relative; display:inline-block; }
+
+/* Challenger — big, green, prominent */
+.next-up-name {
+  display: inline-block;
+  font-size: 28px;
+  font-weight: 700;
+  color: #b7f18b;
+  background: linear-gradient(180deg, rgba(43,138,62,0.07), rgba(43,138,62,0.02));
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(43,138,62,0.12);
+  box-shadow: 0 6px 18px rgba(43,138,62,0.03);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.22);
+  line-height:1;
 }
 
 /* Challenger row */
 .next-up-row{
   display:flex;
   align-items:center;
-  gap:8px;
-}
-.next-up-name{
-  flex:1;
-  font-weight:600;
-  color: var(--accent);
+  gap:12px;
+  margin-bottom:8px;
 }
 .record-btn{
-  padding:6px 12px;
-  border-radius:8px;
+  padding:8px 12px;
+  border-radius:10px;
   border:1px solid var(--border);
-  background: #142038;
+  background:#142038;
   color: var(--text);
   cursor:pointer;
 }
-.record-btn:disabled{
-  opacity:.6;
-  cursor:not-allowed;
-}
+.record-btn:disabled{ opacity:.6; cursor:not-allowed; }
 
 /* Timer */
-#timer-display{
-  margin-top:8px;
-  font-size:14px;
-  color: var(--muted);
-}
+#timer-display{ margin-top:8px; font-size:14px; color:var(--muted); }
 
 /* Roster */
 .roster-row{
   display:flex;
   align-items:center;
-  gap:8px;
-  padding:8px;
+  gap:10px;
+  padding:10px;
+  border-radius:10px;
   border:1px dashed transparent;
-  border-radius:8px;
+  transition: background .12s, border-color .12s;
 }
 .roster-row:hover{
   border-color: var(--border);
-  background: rgba(255,255,255,0.03);
+  background: rgba(255,255,255,0.02);
 }
 .order-handle{
   cursor:grab;
   color: var(--muted);
   user-select:none;
+  font-size:18px;
+  padding:4px 6px;
 }
 .roster-name{
   flex:1;
   text-align:left;
-  padding:6px 10px;
-  border-radius:6px;
+  padding:8px 12px;
+  border-radius:8px;
   border:1px solid var(--border);
   background:#0e1628;
   color: var(--text);
   cursor:pointer;
+  font-weight:600;
+  font-size:15px;
 }
-/* Active (not defeated) = blue */
-.roster-name.active {
-  color: #1f6feb;        /* Blue */
-  border-color: #2a3a5a; /* Subtle blue border */
+.roster-name.active{
+  color: var(--accent);
+  border-color: #26487a;
+  background: rgba(31,111,235,0.03);
+}
+.roster-name.defeated{
+  color: var(--danger);
+  border-color: #5a2a2a;
+  background: rgba(229,57,53,0.03);
+  text-decoration: none;
 }
 
-/* Defeated = red */
-.roster-name.defeated {
-  color: #e53935;        /* Red */
-  text-decoration: none; /* Remove strike-through for clarity */
-  border-color: #5a2a2a; /* Subtle red border */
-}
-
+/* Move buttons */
 .move-btn{
-  padding:4px 8px;
-  border-radius:6px;
+  padding:6px 8px;
+  border-radius:8px;
   border:1px solid var(--border);
   background:#101a2e;
   color: var(--text);
@@ -132,33 +154,25 @@ h2{
 
 /* Add player */
 #new-player-name{
-  padding:8px 10px;
-  border-radius:8px;
+  padding:10px 12px;
+  border-radius:10px;
   border:1px solid var(--border);
   background:#0e1628;
   color: var(--text);
-  min-width:200px;
+  min-width:220px;
 }
 #add-player-button{
-  padding:8px 12px;
-  border-radius:8px;
+  padding:10px 14px;
+  border-radius:10px;
   border:1px solid var(--border);
   background:#142038;
   color: var(--text);
-  margin-left:8px;
   cursor:pointer;
 }
-#add-player-button:disabled{
-  opacity:.6;
-  cursor:not-allowed;
-}
+#add-player-button:disabled{ opacity:.6; cursor:not-allowed; }
 
-/* Match history */
-#match-list .match-desc{
-  font-size:13px;
-  color: var(--muted);
-  margin:4px 0 8px 0;
-}
+/* Match history items */
+#match-list .match-desc{ font-size:13px; color:var(--muted); margin:6px 0 10px 0; }
 
 /* Modal */
 #challenge-modal{
@@ -190,57 +204,8 @@ h2{
   width:100%; height:100%;
   pointer-events:none;
 }
-/* Champion — big, yellow, prominent */
-.champ-name {
-  display: inline-block;
-  font-size: 28px;              /* big */
-  font-weight: 800;             /* bold */
-  color: #ffd84d;               /* warm yellow text */
-  background: linear-gradient(180deg, rgba(255,216,77,0.08), rgba(255,216,77,0.03));
-  padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,216,77,0.12);
-  box-shadow: 0 6px 18px rgba(255,216,77,0.06);
-  text-shadow: 0 1px 0 rgba(0,0,0,0.25);
-  line-height: 1;
-}
 
-/* No-champion smaller, muted */
-.champ-name.no-champ {
-  font-size: 32px;
-  font-weight: 600;
-  color: var(--muted);
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: 0;
-}
-
-/* Challenger — big, green, prominent */
-.next-up-name {
-  display: inline-block;
-  font-size: 26px;              /* slightly smaller than champ */
-  font-weight: 700;
-  color: #b7f18b;               /* light green text for contrast */
-  background: linear-gradient(180deg, rgba(43,138,62,0.07), rgba(43,138,62,0.02));
-  padding: 6px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(43,138,62,0.12);
-  box-shadow: 0 6px 16px rgba(43,138,62,0.04);
-  text-shadow: 0 1px 0 rgba(0,0,0,0.22);
-  line-height: 1;
-}
-
-/* Small responsive adjustments */
-@media (max-width: 520px){
-  .champ-name { font-size: 22px; padding: 6px 10px; }
-  .next-up-name { font-size: 20px; padding: 5px 10px; }
-}
-/* Fire behind champion */
-.champ-fire-wrap {
-  position: relative;
-  display: inline-block;
-}
+/* --- Fire behind champion (flames) --- */
 .champ-fire {
   position: absolute;
   left: 50%;
@@ -251,32 +216,31 @@ h2{
   pointer-events: none;
   overflow: visible;
   filter: blur(0.6px);
-  z-index: 0;
+  z-index:1;
 }
 .champ-fire .flame {
   position: absolute;
   bottom: 0;
-  width: 18px;
+  width: 16px;
   height: 28px;
-  background: radial-gradient(circle at 50% 30%, rgba(255,245,200,0.95), rgba(255,200,60,0.95) 40%, rgba(255,90,20,0.95) 70%, rgba(0,0,0,0) 72%);
+  background: radial-gradient(circle at 50% 30%, rgba(255,245,200,0.98), rgba(255,200,60,0.95) 40%, rgba(255,90,20,0.95) 70%, rgba(0,0,0,0) 72%);
   border-radius: 50% 50% 40% 40%;
   opacity: 0.95;
   animation: flameRise 700ms ease-in-out infinite;
   transform-origin: 50% 100%;
   mix-blend-mode: screen;
 }
-.champ-fire .flame:nth-child(2){ left: 18%; animation-delay: 90ms; transform: scale(0.9); }
-.champ-fire .flame:nth-child(3){ left: 38%; animation-delay: 180ms; transform: scale(1.1); }
-.champ-fire .flame:nth-child(4){ left: 58%; animation-delay: 60ms; transform: scale(0.85); }
-.champ-fire .flame:nth-child(5){ left: 78%; animation-delay: 130ms; transform: scale(1.05); }
-
+.champ-fire .flame:nth-child(2){ left: 12%; animation-delay: 90ms; transform: scale(0.9); }
+.champ-fire .flame:nth-child(3){ left: 32%; animation-delay: 180ms; transform: scale(1.05); }
+.champ-fire .flame:nth-child(4){ left: 52%; animation-delay: 60ms; transform: scale(0.95); }
+.champ-fire .flame:nth-child(5){ left: 72%; animation-delay: 130ms; transform: scale(1.1); }
 @keyframes flameRise {
   0% { transform: translateY(6px) scaleY(0.9) rotate(-2deg); opacity: 0.95; filter: blur(0.2px); }
   50% { transform: translateY(-6px) scaleY(1.05) rotate(2deg); opacity: 1; }
   100% { transform: translateY(6px) scaleY(0.95) rotate(-1deg); opacity: 0.9; }
 }
 
-/* Explosion overlay (sweep) */
+/* --- Explosion overlay (sweep) --- */
 .explosion-overlay {
   position: fixed;
   inset: 0;
@@ -297,8 +261,6 @@ h2{
 @keyframes flashExpand {
   to { transform: translate(-50%, -50%) scale(20); opacity: 0; }
 }
-
-/* Particle burst */
 .explosion-particle {
   position: absolute;
   width: 8px;
@@ -313,8 +275,15 @@ h2{
   to { transform: translate(var(--dx), var(--dy)) scale(0.6); opacity: 0; }
 }
 
-/* Small accessibility reduction for motion if user prefers reduced motion */
+/* Accessibility: reduce motion */
 @media (prefers-reduced-motion: reduce){
   .champ-fire .flame { animation: none; opacity: 0.9; }
   .explosion-flash, .explosion-particle { animation: none; opacity: 0.9; transform: none; }
+}
+
+/* Responsive tweaks */
+@media (max-width: 520px){
+  .champ-name { font-size: 22px; padding: 8px 12px; }
+  .next-up-name { font-size: 20px; padding: 6px 10px; }
+  .roster-name { font-size: 14px; padding: 8px 10px; }
 }
