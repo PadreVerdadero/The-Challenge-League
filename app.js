@@ -44,11 +44,10 @@ const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1n
 async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
   if (!DISCORD_WEBHOOK) return;
   const delay = typeof opts.delayMs === 'number' ? opts.delayMs : 10000;
-  // allow immediate-post callers to pass 0
   if (delay > 0) await new Promise(r => setTimeout(r, delay));
 
   try {
-    // read authoritative current state from DB
+    // read authoritative current state from DB after the delay
     const [playersSnap, champSnap, orderSnap] = await Promise.all([
       get(ref(db, 'players')),
       get(ref(db, 'championId')),
@@ -74,12 +73,14 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
     const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : null;
 
+    // recorded values (these reflect who actually participated in the match)
     const challengerRecorded = match.challengerName || match.challengerId || 'Challenger';
-    const championRecorded = match.championName || match.championId || championNow || 'Champion';
+    const previousChampionRecorded = match.championName || match.championId || 'Champion';
     const winnerRecorded = match.winnerName || match.winnerId || 'Winner';
     const desc = match.description || '';
 
-    const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : championRecorded;
+    // post-delay current champion name (site current champion after delay)
+    const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : previousChampionRecorded;
 
     // Determine Note per spec:
     // - If nextChallengerName exists -> "<nextChallengerName> now has one week to challenge <currentChampionName>."
@@ -99,7 +100,7 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
       description: desc || undefined,
       color: match.type === 'sweep' ? 0xF1C40F : 0x1ABC9C,
       fields: [
-        { name: 'Champion', value: String(currentChampionName), inline: true },
+        { name: 'Previous Champion (recorded)', value: String(previousChampionRecorded), inline: true },
         { name: 'Challenger (recorded)', value: String(challengerRecorded), inline: true },
         { name: 'Winner', value: String(winnerRecorded), inline: true },
         { name: 'Note', value: noteText }
@@ -121,7 +122,6 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     if (!res.ok) {
       console.error('Discord webhook error', res.status, await res.text());
     } else {
-      // optional: mark the match as notified to avoid duplicate notifications
       if (pushKey) {
         try { await set(ref(db, `matches/${pushKey}/discordNotified`), true); } catch(e){}
       }
@@ -831,4 +831,3 @@ function renderAll(){
 document.addEventListener('DOMContentLoaded', ()=>{
   renderAll();
 });
-  
