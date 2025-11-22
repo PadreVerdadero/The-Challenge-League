@@ -716,59 +716,6 @@ function openChallengeModal(challengerId){
   panel.appendChild(row);
   modal.appendChild(panel);
   document.body.appendChild(modal);
-  // --- Challenge modal ---
-function openChallengeModal(challengerId){
-  if (!championId) return;
-  if (isSweep) return;
-  if ($('challenge-modal')) return;
-
-  const challenger = players[challengerId];
-  const modal = document.createElement('div'); modal.id='challenge-modal';
-  modal.style.position='fixed'; modal.style.left=0; modal.style.top=0;
-  modal.style.width='100%'; modal.style.height='100%';
-  modal.style.display='flex'; modal.style.alignItems='center'; modal.style.justifyContent='center';
-  modal.style.background='rgba(0,0,0,0.45)'; modal.style.zIndex=10000;
-
-  const panel = document.createElement('div');
-  panel.style.background='#0b1220'; panel.style.padding='16px'; panel.style.borderRadius='10px';
-  panel.style.minWidth='320px'; panel.style.maxWidth='560px';
-  panel.style.boxShadow='0 8px 30px rgba(0,0,0,0.6)'; panel.style.color='#e6eef8';
-
-  const header = document.createElement('h3');
-  header.textContent = `Record Challenge: ${challenger.name} vs ${players[championId].name}`;
-  panel.appendChild(header);
-
-  const desc = document.createElement('textarea');
-  desc.rows=4; desc.style.width='100%'; desc.placeholder='Description (optional)';
-  panel.appendChild(desc);
-
-  const row = document.createElement('div');
-  row.style.display='flex'; row.style.gap='8px'; row.style.marginTop='12px';
-
-  const challengerBtn = document.createElement('button');
-  challengerBtn.textContent = `${challenger.name} wins`;
-  challengerBtn.style.background='#2b8a3e'; challengerBtn.style.color='#fff';
-  challengerBtn.addEventListener('click', async ()=>{
-    await submitChallenge(challengerId, desc.value||'', challengerId);
-    closeModal();
-  });
-
-  const champBtn = document.createElement('button');
-  champBtn.textContent = `${players[championId].name} wins`;
-  champBtn.style.background='#1f6feb'; champBtn.style.color='#fff';
-  champBtn.addEventListener('click', async ()=>{
-    await submitChallenge(challengerId, desc.value||'', championId);
-    closeModal();
-  });
-
-  const cancel = document.createElement('button');
-  cancel.textContent='Cancel';
-  cancel.addEventListener('click', closeModal);
-
-  row.append(challengerBtn, champBtn, cancel);
-  panel.appendChild(row);
-  modal.appendChild(panel);
-  document.body.appendChild(modal);
     function closeModal(){
     const m=$('challenge-modal'); if(m) m.remove();
     currentChallengerId = null;
@@ -850,7 +797,7 @@ async function submitChallenge(challengerId, description, winnerId){
     console.error('submitChallenge error', e);
   }
 }
-  // --- Add Player ---
+// --- Add Player ---
 async function addPlayer(){
   const input = $('new-player-name'); if (!input) return;
   const name = input.value.trim(); if (!name) return alert('Enter a name');
@@ -896,7 +843,7 @@ onValue(ref(db, 'championId'), snap=>{
   isSweep = computeSweep();
   renderAll();
 });
-  onValue(ref(db, 'matches'), snap=>{
+onValue(ref(db, 'matches'), snap=>{
   matches = Object.values(snap.val() || {});
   renderMatchHistory();
 });
@@ -939,7 +886,7 @@ onValue(ref(db, 'defeats'), async snap=>{
 
   renderAll();
 });
-  // Timer listener: update countdown and re-render safely when DOM is ready
+// Timer listener: update countdown and re-render safely when DOM is ready
 onValue(ref(db, 'timer/endTimestamp'), snap=>{
   timerEnd = snap.val() || null;
 
