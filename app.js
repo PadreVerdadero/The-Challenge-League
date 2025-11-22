@@ -295,19 +295,6 @@ function renderMatchHistory(){
   const el = $('match-list'); if (!el) return;
   el.innerHTML = `<h2>Match History</h2>`;
 
-  if (isSweep && championId && players[championId]) {
-    const sweepMatch = {
-      type: 'sweep',
-      winnerName: players[championId].name,
-      timestamp: Date.now()
-    };
-    const alreadyLogged = matches.some(m => m.type === 'sweep' && m.winnerName === sweepMatch.winnerName);
-    if (!alreadyLogged) {
-      const mRef = push(ref(db, 'matches'));
-      set(mRef, sweepMatch);
-    }
-  }
-
   const sorted = matches.slice().sort((a,b)=> (b.timestamp||0)-(a.timestamp||0));
   sorted.forEach(m=>{
     const time = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
@@ -326,7 +313,7 @@ function renderMatchHistory(){
     el.appendChild(div);
   });
 }
-// --- Champion fire and sweep explosion helpers ---
+// --- Champion glow and sweep explosion helpers ---
 
 // Keep previous explosion and confetti helpers intact for sweep/confetti
 // Create a simple glow effect function (CSS-only class toggle)
@@ -398,7 +385,6 @@ function triggerSweepExplosion() {
   document.body.appendChild(overlay);
   setTimeout(()=> overlay.remove(), 900);
 }
-
 // --- Challenge modal ---
 function openChallengeModal(challengerId){
   if (!championId) return;
@@ -497,7 +483,6 @@ async function submitChallenge(challengerId, description, winnerId){
       triggerConfetti();
 
       // Ensure UI re-renders and then trigger glow effect for champion
-      // Small timeout ensures renderChampion has created the .champ-name element
       setTimeout(()=> {
         try { triggerChampionGlow(1200); } catch (e) { console.error('triggerChampionGlow error', e); }
       }, 60);
@@ -511,7 +496,6 @@ async function submitChallenge(challengerId, description, winnerId){
         await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
       }
       // Champion won this challenge — show glow as visual feedback
-      // Use short delay to ensure champion element exists
       setTimeout(()=> {
         try { triggerChampionGlow(1000); } catch (e) { console.error('triggerChampionGlow error', e); }
       }, 60);
@@ -577,13 +561,28 @@ onValue(ref(db, 'defeats'), snap=>{
   const val = snap.val() || {};
   window._lastDefeatsSnap = val;
   const keys = typeof val === 'object' ? Object.keys(val) : [];
+  const prevIsSweep = isSweep;
   defeated = new Set(keys);
-  const prev = isSweep;
   isSweep = computeSweep();
-  if (isSweep && !prev){
+
+  // If a sweep just occurred (transition false -> true), record it once
+  if (isSweep && !prevIsSweep && championId && players[championId]) {
+    try {
+      const sweepMatch = {
+        type: 'sweep',
+        winnerId: championId,
+        winnerName: players[championId].name,
+        timestamp: Date.now()
+      };
+      const mRef = push(ref(db, 'matches'));
+      set(mRef, sweepMatch);
+    } catch (e) {
+      console.error('Error recording sweep match', e);
+    }
     console.log('Sweep detected for champion', championId);
     triggerSweepExplosion();
   }
+
   renderAll();
 });
 
