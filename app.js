@@ -400,7 +400,7 @@ function triggerSweepExplosion() {
   document.body.appendChild(overlay);
   setTimeout(()=> overlay.remove(), 900);
 }
-// --- Trophy badge helpers ---
+// --- Trophy badge helpers (simplified, no counter) ---
 function ensureLiveAnnounce(){
   let live = document.getElementById('site-live-announce');
   if (!live){
@@ -420,38 +420,23 @@ function ensureLiveAnnounce(){
   return live;
 }
 
-function getDefenseCount(champId){
-  if (!champId) return 0;
-  try {
-    return Number(localStorage.getItem(`cl:defenses:${champId}`) || 0);
-  } catch (e) { return 0; }
-}
-function setDefenseCount(champId, n){
-  if (!champId) return;
-  try { localStorage.setItem(`cl:defenses:${champId}`, String(n)); } catch(e){}
-}
-function resetDefenseCount(champId){
-  if (!champId) return;
-  try { localStorage.removeItem(`cl:defenses:${champId}`); } catch(e){}
-}
-
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 }
 
-function showTrophyBadge(champName, champId){
+function showTrophyBadge(champName){
+  ensureEffectsContainer();
   ensureLiveAnnounce();
-  const newCount = getDefenseCount(champId) + 1;
-  setDefenseCount(champId, newCount);
 
   const badge = document.createElement('div');
   badge.className = 'trophy-badge';
   badge.innerHTML = `
     <div class="trophy-emoji">🏆</div>
     <div class="trophy-text"><strong>${escapeHtml(champName)}</strong>
-      <div class="trophy-count">Defenses: <span class="trophy-count-num">${newCount}</span></div>
+      <div class="trophy-sub">Title defended</div>
     </div>
   `;
+
   badge.style.position = 'fixed';
   badge.style.top = '24px';
   badge.style.right = '24px';
@@ -460,13 +445,13 @@ function showTrophyBadge(champName, champId){
   document.body.appendChild(badge);
 
   const live = ensureLiveAnnounce();
-  live.textContent = `${champName} defended the title. Defenses: ${newCount}`;
+  live.textContent = `${champName} defended the title`;
 
   requestAnimationFrame(()=> badge.classList.add('trophy-badge--enter'));
   setTimeout(()=> {
     badge.classList.remove('trophy-badge--enter');
     setTimeout(()=> badge.remove(), 360);
-  }, 2800);
+  }, 2400);
 }
 // --- Challenge modal ---
 function openChallengeModal(challengerId){
@@ -549,7 +534,7 @@ async function submitChallenge(challengerId, description, winnerId){
 
     if (winnerId === challengerId){
       const previousChampion = championId;
-      try { resetDefenseCount(previousChampion); } catch(e){}
+      try { /* no counter to reset now */ } catch(e){}
       await set(ref(db, 'championId'), challengerId);
 
       if (previousChampion && playersOrderArr.includes(previousChampion)) {
@@ -571,6 +556,7 @@ async function submitChallenge(challengerId, description, winnerId){
       }, 60);
 
     } else {
+      // Champion defended (champion wins)
       await set(ref(db, `defeats/${challengerId}`), true);
       const idx = playersOrderArr.indexOf(challengerId);
       if (idx !== -1) {
@@ -579,13 +565,15 @@ async function submitChallenge(challengerId, description, winnerId){
         await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
       }
 
+      // Visual glow, confetti, and trophy badge (no counter)
       setTimeout(()=> {
         try { triggerChampionGlow(1000); } catch (e) { console.error('triggerChampionGlow error', e); }
       }, 60);
 
       try {
         const champName = players[championId]?.name || 'Champion';
-        showTrophyBadge(champName, championId);
+        try { triggerConfetti(); } catch (e) { console.error('triggerConfetti error', e); }
+        showTrophyBadge(champName);
       } catch (e) { console.error('showTrophyBadge error', e); }
     }
 
@@ -614,7 +602,6 @@ async function addPlayer(){
   }
 }
 $('add-player-button')?.addEventListener('click', addPlayer);
-
 // --- Firebase listeners ---
 onValue(ref(db, 'players'), snap=>{
   players = snap.val() || {};
@@ -638,7 +625,7 @@ onValue(ref(db, 'championId'), snap=>{
   const prevChampion = championId;
   championId = snap.val();
   if (prevChampion && prevChampion !== championId) {
-    // previous champion reset handled in submitChallenge when title changes
+    // previous champion reset handled during challenge submission
   }
   isSweep = computeSweep();
   renderAll();
