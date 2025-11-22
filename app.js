@@ -108,7 +108,7 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     let titleText = recType === 'sweep' ? '🏆 Sweep Recorded' : '🏁 Match Recorded';
 
     if (recType === 'sweep') {
-      // For sweep: keep recorded fields but change title and note per request
+      // For sweep: change title and note per request
       titleText = 'Winner!';
       noteText = `${currentChampionName} now decides how to determine the order.`;
     } else if (nextChallengerName) {
@@ -132,82 +132,6 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     };
 
     const payload = { username: 'Challenge League Bot', embeds: [embed] };
-    const res = await fetch(DISCORD_WEBHOOK, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      console.error('Discord webhook error', res.status, await res.text());
-    } else if (pushKey) {
-      try { await set(ref(db, `matches/${pushKey}/discordNotified`), true); } catch(e){}
-    }
-  } catch (err) {
-    console.error('postToDiscord error', err);
-  }
-}
-
-    // NON-SWEEP BEHAVIOR (existing flow)
-    // Build embed using recorded match fields (so message matches match history exactly)
-    const recChallenger = recordedMatch.challengerName || recordedMatch.challengerId || 'Challenger';
-    const recChampion = recordedMatch.championName || recordedMatch.championId || 'Champion';
-    const recWinner = recordedMatch.winnerName || recordedMatch.winnerId || 'Winner';
-    const recDesc = recordedMatch.description || '';
-    const recType = recordedMatch.type || 'match';
-
-    // Wait the requested delay so DB updates settle (and Note uses post-delay site state)
-    if (delay > 0) await new Promise(r => setTimeout(r, delay));
-
-    // Read authoritative site state to compute Note (next challenger / current champion)
-    const [playersSnap, champSnap, orderSnap] = await Promise.all([
-      get(ref(db, 'players')),
-      get(ref(db, 'championId')),
-      get(ref(db, 'playersOrder'))
-    ]);
-    const playersObj = playersSnap.exists() ? playersSnap.val() : {};
-    const championNow = champSnap.exists() ? champSnap.val() : null;
-
-    let orderedArr = [];
-    if (orderSnap.exists()){
-      const orderVal = orderSnap.val();
-      orderedArr = Object.entries(orderVal)
-        .map(([k,id])=>({idx: Number(k), id}))
-        .filter(x => x.id)
-        .sort((a,b)=>a.idx-b.idx)
-        .map(e=>e.id);
-    } else {
-      orderedArr = Object.keys(playersObj || {}).sort();
-    }
-
-    const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
-    const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : null;
-    const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : recChampion;
-
-    let noteText;
-    if (recType === 'sweep') {
-      noteText = `${currentChampionName} swept the queue — please plan a new order for the League.`;
-    } else if (nextChallengerName) {
-      noteText = `${nextChallengerName} now has one week to challenge ${currentChampionName}.`;
-    } else {
-      noteText = `${currentChampionName} is the winner.`;
-    }
-
-    const embed = {
-      title: recType === 'sweep' ? '🏆 Sweep Recorded' : '🏁 Match Recorded',
-      description: recDesc || undefined,
-      color: recType === 'sweep' ? 0xF1C40F : 0x1ABC9C,
-      fields: [
-        { name: 'Champion (recorded)', value: String(recChampion), inline: true },
-        { name: 'Challenger (recorded)', value: String(recChallenger), inline: true },
-        { name: 'Winner', value: String(recWinner), inline: true },
-        { name: 'Note', value: noteText }
-      ],
-      timestamp: new Date(recordedMatch.timestamp || Date.now()).toISOString()
-    };
-
-    const payload = { username: 'Challenge League Bot', embeds: [embed] };
-
     const res = await fetch(DISCORD_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -273,7 +197,6 @@ function startLocalCountdown(){
   updateTimerDisplay();
   timerInterval = setInterval(updateTimerDisplay, 1000);
 }
-
 // --- Confetti ---
 function triggerConfetti(){
   const canvas = $('confetti-canvas'); if (!canvas) return;
@@ -635,7 +558,6 @@ function triggerSweepExplosion() {
   document.body.appendChild(overlay);
   setTimeout(()=> overlay.remove(), 900);
 }
-
 // --- Trophy badge helpers (simplified, no counter) ---
 function ensureLiveAnnounce(){
   let live = document.getElementById('site-live-announce');
@@ -655,6 +577,7 @@ function ensureLiveAnnounce(){
   }
   return live;
 }
+
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 }
@@ -867,6 +790,7 @@ onValue(ref(db, 'championId'), snap=>{
   isSweep = computeSweep();
   renderAll();
 });
+
 onValue(ref(db, 'matches'), snap=>{
   matches = Object.values(snap.val() || {});
   renderMatchHistory();
@@ -910,6 +834,7 @@ onValue(ref(db, 'defeats'), async snap=>{
 
   renderAll();
 });
+
 // Timer listener: update countdown and re-render safely when DOM is ready
 onValue(ref(db, 'timer/endTimestamp'), snap=>{
   timerEnd = snap.val() || null;
