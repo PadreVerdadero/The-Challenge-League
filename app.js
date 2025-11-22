@@ -680,7 +680,7 @@ function openChallengeModal(challengerId){
     renderAll();
   }
 }
-// --- Challenge submission ---
+// --- Challenge submission (updated: skip original webhook when match causes a sweep) ---
 async function submitChallenge(challengerId, description, winnerId){
   const match = {
     challengerId,
@@ -694,16 +694,16 @@ async function submitChallenge(challengerId, description, winnerId){
   };
 
   try {
+    // 1) write the recorded match entry
     const mRef = push(ref(db, 'matches'));
     await set(mRef, match);
 
-    // Notify Discord (client-side). Pass pushKey so notifier can mark the match as notified.
-    // Default delay is 10 seconds so the Note uses post-delay site state
-    postToDiscord(match, mRef.key).catch(e => console.error('Discord notify failed', e));
-
+    // 2) Apply game-state updates that follow a match result
     if (winnerId === challengerId){
+      // challenger won: becomes new champion
       const previousChampion = championId;
-      try { /* no counter to reset now */ } catch(e){}
+      try { /* placeholder for any counters */ } catch(e){}
+
       await set(ref(db, 'championId'), challengerId);
 
       if (previousChampion && playersOrderArr.includes(previousChampion)) {
@@ -725,8 +725,9 @@ async function submitChallenge(challengerId, description, winnerId){
       }, 60);
 
     } else {
-      // Champion defended (champion wins)
+      // champion defended
       await set(ref(db, `defeats/${challengerId}`), true);
+
       const idx = playersOrderArr.indexOf(challengerId);
       if (idx !== -1) {
         playersOrderArr.splice(idx,1);
@@ -734,7 +735,6 @@ async function submitChallenge(challengerId, description, winnerId){
         await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
       }
 
-      // Visual glow, confetti, and trophy badge (no counter)
       setTimeout(()=> {
         try { triggerChampionGlow(1000); } catch (e) { console.error('triggerChampionGlow error', e); }
       }, 60);
@@ -746,7 +746,52 @@ async function submitChallenge(challengerId, description, winnerId){
       } catch (e) { console.error('showTrophyBadge error', e); }
     }
 
-    isSweep = computeSweep();
+    // 3) After applying updates, determine whether this match caused a sweep.
+    //    Read defeats and playersOrder from DB to compute authoritative sweep state.
+    try {
+      const [defSnap, orderSnap] = await Promise.all([
+        get(ref(db, 'defeats')),
+        get(ref(db, 'playersOrder'))
+      ]);
+      const defeatsVal = defSnap.exists() ? defSnap.val() : {};
+      const defeatedKeys = typeof defeatsVal === 'object' ? Object.keys(defeatsVal) : [];
+      const defeatedSet = new Set(defeatedKeys);
+
+      let orderedArr = [];
+      if (orderSnap.exists()){
+        const orderVal = orderSnap.val();
+        orderedArr = Object.entries(orderVal)
+          .map(([k,id])=>({idx: Number(k), id}))
+          .filter(x => x.id)
+          .sort((a,b)=>a.idx-b.idx)
+          .map(e=>e.id);
+      } else {
+        orderedArr = Object.keys(players || {}).sort();
+      }
+
+      // compute whether all challengers (non-champion players) are defeated
+      const champNowSnap = await get(ref(db, 'championId'));
+      const champNowId = champNowSnap.exists() ? champNowSnap.val() : championId;
+      const challengers = Object.keys(players || {}).filter(id => id !== champNowId);
+      const causesSweep = challengers.length > 0 && challengers.every(id => defeatedSet.has(id));
+
+      // update local isSweep
+      isSweep = causesSweep;
+    } catch (e) {
+      console.warn('submitChallenge: could not compute sweep state after match', e);
+      // fallback keep existing isSweep
+    }
+
+    // 4) Post to Discord only if this match did NOT cause a sweep.
+    //    If it DID cause a sweep, defeats listener will create the sweep entry and post the Winner! message.
+    if (!isSweep) {
+      postToDiscord(match, mRef.key).catch(e => console.error('Discord notify failed', e));
+    } else {
+      // Mark original match as discordNotified to be explicit (prevents accidental re-posts)
+      try { await set(ref(db, `matches/${mRef.key}/discordNotified`), true); } catch(e){ /* ignore */ }
+    }
+
+    // 5) Update local state and UI
     currentChallengerId = null;
     renderAll();
   } catch (e) {
