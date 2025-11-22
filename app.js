@@ -41,10 +41,14 @@ const $ = id => document.getElementById(id);
 // WARNING: webhook in client is public. Consider server-side for production.
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1ncSJPEZErvtiT-qZ7lkS8JZ_FD66BmDKPSTEi_Ms4AJMDnS4Hnve_BNtD27oln8ixja";
 
-async function postToDiscord(match, pushKey){
+async function postToDiscord(match, pushKey, opts = { delayMs: 5000 }) {
   if (!DISCORD_WEBHOOK) return;
+  const delay = typeof opts.delayMs === 'number' ? opts.delayMs : 5000;
+  // allow immediate-post callers to pass 0
+  if (delay > 0) await new Promise(r => setTimeout(r, delay));
+
   try {
-    // read authoritative current state from DB so we compute the next challenger after the write
+    // read authoritative current state from DB
     const [playersSnap, champSnap, orderSnap] = await Promise.all([
       get(ref(db, 'players')),
       get(ref(db, 'championId')),
@@ -66,33 +70,42 @@ async function postToDiscord(match, pushKey){
       orderedArr = Object.keys(playersObj || {}).sort();
     }
 
-    // find the next challenger (first id that is not champion)
+    // compute current "next challenger" from authoritative state
     const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
-    const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : 'No challenger';
+    const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : null;
 
-    const challenger = match.challengerName || match.challengerId || 'Challenger';
-    const champion = match.championName || match.championId || championNow || 'Champion';
-    const winner = match.winnerName || match.winnerId || 'Winner';
+    const challengerRecorded = match.challengerName || match.challengerId || 'Challenger';
+    const championRecorded = match.championName || match.championId || championNow || 'Champion';
+    const winnerRecorded = match.winnerName || match.winnerId || 'Winner';
     const desc = match.description || '';
+
+    const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : championRecorded;
+
+    // Determine Note per spec:
+    // - If nextChallengerName exists -> "<nextChallengerName> now has one week to challenge <currentChampionName>."
+    // - If nextChallengerName is null -> "<currentChampionName> is the winner."
+    // - If sweep -> special text
+    let noteText;
+    if (match.type === 'sweep') {
+      noteText = `${currentChampionName} swept the queue — please plan a new order for the League.`;
+    } else if (nextChallengerName) {
+      noteText = `${nextChallengerName} now has one week to challenge ${currentChampionName}.`;
+    } else {
+      noteText = `${currentChampionName} is the winner.`;
+    }
 
     const embed = {
       title: match.type === 'sweep' ? '🏆 Sweep Recorded' : '🏁 Match Recorded',
       description: desc || undefined,
       color: match.type === 'sweep' ? 0xF1C40F : 0x1ABC9C,
       fields: [
-        { name: 'Champion', value: String(champion), inline: true },
-        { name: 'Challenger', value: String(challenger), inline: true },
-        { name: 'Winner', value: String(winner), inline: true }
+        { name: 'Champion', value: String(currentChampionName), inline: true },
+        { name: 'Challenger (recorded)', value: String(challengerRecorded), inline: true },
+        { name: 'Winner', value: String(winnerRecorded), inline: true },
+        { name: 'Note', value: noteText }
       ],
       timestamp: new Date(match.timestamp || Date.now()).toISOString()
     };
-
-    if (match.type === 'sweep') {
-      embed.fields.push({ name: 'Note', value: `${champion} swept the queue — please plan a new order for the League.` });
-    } else {
-      // NOTE: Use the computed next challenger name here
-      embed.fields.push({ name: 'Note', value: `${nextChallengerName} now has one week to challenge the title.` });
-    }
 
     const payload = {
       username: 'Challenge League Bot',
@@ -261,10 +274,33 @@ function renderChampionActions(){
       const ordered = playersOrderArr.length ? playersOrderArr : Object.keys(players).sort();
       const pick = ordered.find(id => id && players[id]) || null;
       if (!pick) { alert('No players to select as champion'); return; }
+
       await set(ref(db, 'championId'), pick);
       await set(ref(db, 'timer/endTimestamp'), Date.now() + WEEK_MS);
       isSweep = false;
+
+      // Recompute order on DB to ensure canonical ordering present
+      await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+
       renderAll();
+
+      // Notify Discord immediately about the new next challenger (no extra delay)
+      try {
+        const pseudoMatch = {
+          challengerId: null,
+          challengerName: null,
+          championId: pick,
+          championName: players[pick]?.name || pick,
+          winnerId: null,
+          winnerName: null,
+          description: 'Order locked in',
+          timestamp: Date.now()
+        };
+        // Post immediately (delayMs:0) so notifier reads DB and computes next challenger
+        postToDiscord(pseudoMatch, null, { delayMs: 0 }).catch(e => console.error('Lock-in Discord notify failed', e));
+      } catch(e){
+        console.error('Lock-in notify error', e);
+      }
     });
     area.appendChild(btn);
   }
