@@ -37,6 +37,21 @@ window._currentChallengerId = () => currentChallengerId;
 
 const $ = id => document.getElementById(id);
 
+// --- Section ensure helper (prevents silent render failures) ---
+function ensureSection(id, title){
+  let el = document.getElementById(id);
+  if (!el){
+    el = document.createElement('div');
+    el.id = id;
+    el.className = 'card';
+    const h = document.createElement('h2');
+    h.textContent = title;
+    el.appendChild(h);
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
 // --- Timer helpers ---
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 function formatDuration(ms){
@@ -115,12 +130,11 @@ function computeSweep(){
   if (challengers.length === 0) return false;
   return challengers.every(id => defeated.has(id));
 }
-
 if (typeof computeSweep === 'function') window.computeSweep = computeSweep;
 
 // --- Champion rendering ---
 function renderChampion(){
-  const el = $('champion-card'); if (!el) return;
+  const el = ensureSection('champion-card', 'Champion');
   el.innerHTML = `<h2>Champion</h2>`;
   const wrap = document.createElement('div');
   if (championId && players[championId]) {
@@ -170,7 +184,7 @@ function renderChampionActions(){
 }
 // --- Challenge section ---
 function renderChallengeSection(){
-  const el = $('challenge-section'); if (!el) return;
+  const el = ensureSection('challenge-section', 'Challenger');
   el.innerHTML = `<h2>Challenger</h2>`;
 
   const ordered = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
@@ -221,7 +235,128 @@ function renderChallengeSection(){
   el.appendChild(timerWrap);
   updateTimerDisplay();
 }
-// Instead of an anchored flame, implement a simple CSS glow toggle
+
+// --- Roster rendering ---
+function renderRoster(){
+  const el = ensureSection('roster', 'Roster');
+  el.innerHTML = `<h2>Roster</h2>`;
+  if (!players || Object.keys(players).length === 0) {
+    el.innerHTML += '<p>No players yet</p>';
+    return;
+  }
+
+  const orderedIds = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
+  const visibleIds = orderedIds.filter(id => id !== championId && id !== currentChallengerId && players[id]);
+
+  visibleIds.forEach((id, position)=>{
+    const p = players[id]; if (!p) return;
+
+    const row = document.createElement('div'); row.className='roster-row';
+    const handle = document.createElement('div'); handle.className='order-handle'; handle.textContent='☰';
+
+    const nameBtn = document.createElement('button');
+    nameBtn.className='roster-name';
+    nameBtn.textContent = p.name;
+
+    if (defeated.has(id)) {
+      nameBtn.classList.add('defeated');
+    } else {
+      nameBtn.classList.add('active');
+    }
+
+    const addBtn = $('add-player-button');
+    if (addBtn && !addBtn.disabled){
+      nameBtn.addEventListener('click', async ()=>{
+        if (confirm(`Remove player ${p.name}?`)){
+          await remove(ref(db, `players/${id}`));
+        }
+      });
+    }
+
+    row.append(handle, nameBtn);
+
+    const movesDisabled = Boolean(championId);
+
+    if (visibleIds.length > 1){
+      const up = document.createElement('button');
+      up.className = 'move-btn';
+      up.textContent = '↑';
+      up.disabled = movesDisabled || (position === 0);
+      up.addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        if (movesDisabled) return;
+        const idx = playersOrderArr.indexOf(id);
+        if (idx > 0){
+          [playersOrderArr[idx-1], playersOrderArr[idx]] = [playersOrderArr[idx], playersOrderArr[idx-1]];
+          await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+        }
+      });
+
+      const down = document.createElement('button');
+      down.className = 'move-btn';
+      down.textContent = '↓';
+      down.disabled = movesDisabled || (position === visibleIds.length-1);
+      down.addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        if (movesDisabled) return;
+        const idx = playersOrderArr.indexOf(id);
+        if (idx >= 0 && idx < playersOrderArr.length-1){
+          [playersOrderArr[idx+1], playersOrderArr[idx]] = [playersOrderArr[idx], playersOrderArr[idx+1]];
+          await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+        }
+      });
+
+      row.append(up, down);
+    }
+
+    el.appendChild(row);
+  });
+}
+
+// --- Match History rendering ---
+function renderMatchHistory(){
+  const el = ensureSection('match-list', 'Match History');
+  el.innerHTML = `<h2>Match History</h2>`;
+
+  const sorted = matches.slice().sort((a,b)=> (b.timestamp||0)-(a.timestamp||0));
+  sorted.forEach(m=>{
+    const time = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
+    const div = document.createElement('div');
+    if (m.type === 'sweep') {
+      div.innerHTML = `🏆 Winner - ${m.winnerName} (Sweep) ${time ? `(${time})` : ''}`;
+    } else {
+      div.innerHTML = `🏁 <strong>${m.challengerName||'Unknown'}</strong> vs <strong>${m.championName||'Unknown'}</strong> — Winner: <strong>${m.winnerName||'Unknown'}</strong> ${time ? `(${time})` : ''}`;
+      if (m.description){
+        const d = document.createElement('div');
+        d.className='match-desc';
+        d.textContent = m.description;
+        div.appendChild(d); // attach description to the current match row
+      }
+    }
+    el.appendChild(div);
+  });
+}
+// --- Champion glow, trophy badge, and sweep explosion helpers ---
+
+// Ensure effects container exists (if you plan to reuse for overlays)
+function ensureEffectsContainer(){
+  let container = document.getElementById('effects-container');
+  if (!container){
+    container = document.createElement('div');
+    container.id = 'effects-container';
+    container.style.position = 'fixed';
+    container.style.left = '0';
+    container.style.top = '0';
+    container.style.width = '100%';
+    container.style.height = '100%';
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = 9999;
+    document.body.appendChild(container);
+  }
+  return container;
+}
+
+// Glow toggle
 function triggerChampionGlow(duration = 1200){
   const champEl = document.querySelector('.champ-name');
   if (!champEl) return;
@@ -230,12 +365,9 @@ function triggerChampionGlow(duration = 1200){
     champEl.classList.remove('champ-glow');
   }, duration);
 }
+function triggerChampionFire(){ triggerChampionGlow(1800); }
 
-function triggerChampionFire(){
-  triggerChampionGlow(1800);
-}
-
-// Explosion animation for sweep: flash + particle burst
+// Sweep explosion (visual only)
 function triggerSweepExplosion() {
   const overlay = document.createElement('div');
   overlay.className = 'explosion-overlay';
@@ -558,7 +690,7 @@ onValue(ref(db, 'defeats'), async snap=>{
   renderAll();
 });
 
-// UPDATED: timer listener re-renders UI so challenger logic updates with timer changes
+// Timer listener: update countdown and re-render safely when DOM is ready
 onValue(ref(db, 'timer/endTimestamp'), snap=>{
   timerEnd = snap.val() || null;
 
@@ -568,12 +700,22 @@ onValue(ref(db, 'timer/endTimestamp'), snap=>{
     updateTimerDisplay();
   }
 
-  // Ensure challenger section re-computes with the latest timer state
-  renderAll();
+  // Guarded re-render (prevents early render before containers exist)
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    renderAll();
+  } else {
+    document.addEventListener('DOMContentLoaded', renderAll, { once: true });
+  }
 });
 
 // --- Helper to render everything ---
 function renderAll(){
+  // Ensure containers exist before rendering sections
+  ensureSection('champion-card', 'Champion');
+  ensureSection('challenge-section', 'Challenger');
+  ensureSection('roster', 'Roster');
+  ensureSection('match-list', 'Match History');
+
   renderChampion();
   renderChallengeSection();
   renderRoster();
