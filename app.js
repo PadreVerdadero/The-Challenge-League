@@ -328,26 +328,66 @@ function renderMatchHistory(){
 }
 // --- Champion fire and sweep explosion helpers ---
 
-// Create temporary fire element behind champion name, auto-removes after duration
-function triggerChampionFire() {
+// Ensure effects container exists (call once)
+function ensureEffectsContainer(){
+  let container = document.getElementById('effects-container');
+  if (!container){
+    container = document.createElement('div');
+    container.id = 'effects-container';
+    container.style.position = 'fixed';
+    container.style.left = '0';
+    container.style.top = '0';
+    container.style.width = '100%';
+    container.style.height = '100%';
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = 9999;
+    document.body.appendChild(container);
+  }
+  return container;
+}
+
+function triggerChampionFire(){
   const champEl = document.querySelector('.champ-name');
   if (!champEl) return;
-  if (!champEl.classList.contains('champ-fire-wrap')) {
-    champEl.classList.add('champ-fire-wrap');
-  }
+  const rect = champEl.getBoundingClientRect();
+  const container = ensureEffectsContainer();
+
+  // Create a wrapper pinned to champion
+  const wrapper = document.createElement('div');
+  wrapper.className = 'champ-fire-effect';
+  wrapper.style.position = 'absolute';
+  // center horizontally on champion and place slightly below it
+  wrapper.style.left = `${rect.left + rect.width/2}px`;
+  wrapper.style.top = `${rect.top + rect.height - 6}px`;
+  wrapper.style.transform = 'translate(-50%, 0)';
+  wrapper.style.width = `${Math.max(120, rect.width * 1.2)}px`;
+  wrapper.style.height = '40px';
+  wrapper.style.pointerEvents = 'none';
+  wrapper.style.zIndex = 9998;
+
+  // Build flames as in your CSS expectations
   const fire = document.createElement('div');
   fire.className = 'champ-fire';
+  fire.style.position = 'relative';
+  fire.style.left = '0';
+  fire.style.top = '0';
+  fire.style.width = '100%';
+  fire.style.height = '100%';
+  fire.style.overflow = 'visible';
+
   for (let i = 0; i < 5; i++){
     const f = document.createElement('div');
     f.className = 'flame';
+    // disperse flames across width
+    f.style.left = `${(i * 18) + 6}px`;
     fire.appendChild(f);
   }
-  champEl.parentElement.style.position = champEl.parentElement.style.position || 'relative';
-  champEl.parentElement.appendChild(fire);
 
-  setTimeout(()=> {
-    fire.remove();
-  }, 2400);
+  wrapper.appendChild(fire);
+  container.appendChild(wrapper);
+
+  // auto remove after animation (match your CSS durations)
+  setTimeout(() => { wrapper.remove(); }, 2600);
 }
 
 // Explosion animation for sweep: flash + particle burst
