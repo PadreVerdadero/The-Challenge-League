@@ -187,10 +187,10 @@ function renderChallengeSection(){
     currentChallengerId = null;
   }
   window._currentChallengerId = () => currentChallengerId;
-
-  const row = document.createElement('div'); row.className = 'next-up-row';
+    const row = document.createElement('div'); row.className = 'next-up-row';
   const name = document.createElement('div'); name.className = 'next-up-name';
-    // Show challenger name only when countdown is active; otherwise show "No active challenge"
+
+  // Show challenger name only when countdown is active; otherwise show "No active challenge"
   if (countdownActive && nextUpId) {
     name.textContent = players[nextUpId]?.name || 'Unknown';
   } else {
@@ -324,7 +324,7 @@ function renderMatchHistory(){
     el.appendChild(div);
   });
 }
-// --- Champion glow and sweep explosion helpers ---
+// --- Champion glow, trophy badge, and sweep explosion helpers ---
 
 // Ensure effects container exists (in case other effects reuse it)
 function ensureEffectsContainer(){
@@ -343,7 +343,6 @@ function ensureEffectsContainer(){
   }
   return container;
 }
-
 // Instead of an anchored flame, implement a simple CSS glow toggle
 function triggerChampionGlow(duration = 1200){
   const champEl = document.querySelector('.champ-name');
@@ -391,6 +390,91 @@ function triggerSweepExplosion() {
 
   document.body.appendChild(overlay);
   setTimeout(()=> overlay.remove(), 900);
+}
+
+// --- Trophy badge helpers ---
+
+// Ensure a small live region for screen readers exists
+function ensureLiveAnnounce(){
+  let live = document.getElementById('site-live-announce');
+  if (!live){
+    live = document.createElement('div');
+    live.id = 'site-live-announce';
+    live.setAttribute('aria-live', 'polite');
+    live.setAttribute('aria-atomic', 'true');
+    Object.assign(live.style, {
+      position: 'absolute',
+      left: '-9999px',
+      width: '1px',
+      height: '1px',
+      overflow: 'hidden'
+    });
+    document.body.appendChild(live);
+  }
+  return live;
+}
+
+// Per-champion defense count stored in localStorage (simple persistence)
+function getDefenseCount(champId){
+  if (!champId) return 0;
+  try {
+    return Number(localStorage.getItem(`cl:defenses:${champId}`) || 0);
+  } catch (e) { return 0; }
+}
+function setDefenseCount(champId, n){
+  if (!champId) return;
+  try { localStorage.setItem(`cl:defenses:${champId}`, String(n)); } catch(e){}
+}
+
+// Small HTML-escaping helper for names
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+
+// Visual trophy badge pop-in
+function showTrophyBadge(champName, champId){
+  ensureEffectsContainer();
+  ensureLiveAnnounce();
+
+  // Increment persisted counter
+  const newCount = getDefenseCount(champId) + 1;
+  setDefenseCount(champId, newCount);
+
+  // Create badge
+  const badge = document.createElement('div');
+  badge.className = 'trophy-badge';
+  badge.innerHTML = `
+    <div class="trophy-emoji">🏆</div>
+    <div class="trophy-text"><strong>${escapeHtml(champName)}</strong><div class="trophy-count">Defenses: <span class="trophy-count-num">${newCount}</span></div></div>
+  `;
+
+  // Position: fixed top-right but small offset so it doesn't overlap UI
+  badge.style.position = 'fixed';
+  badge.style.top = '24px';
+  badge.style.right = '24px';
+  badge.style.zIndex = 20000;
+  badge.style.pointerEvents = 'none';
+  document.body.appendChild(badge);
+
+  // Announce for screen readers
+  const live = ensureLiveAnnounce();
+  live.textContent = `${champName} defended the title. Defenses: ${newCount}`;
+
+  // Trigger animation via CSS class
+  requestAnimationFrame(()=> badge.classList.add('trophy-badge--enter'));
+
+  // Remove after duration
+  setTimeout(()=> {
+    badge.classList.remove('trophy-badge--enter');
+    // let exit animation run then remove
+    setTimeout(()=> badge.remove(), 360);
+  }, 2800);
+}
+
+// Reset defense count for a given champion id (call when champion changes)
+function resetDefenseCount(champId){
+  if (!champId) return;
+  try { localStorage.removeItem(`cl:defenses:${champId}`); } catch(e){}
 }
 // --- Challenge modal ---
 function openChallengeModal(challengerId){
@@ -472,7 +556,11 @@ async function submitChallenge(challengerId, description, winnerId){
     await set(mRef, match);
 
     if (winnerId === challengerId){
+      // New champion crowned
       const previousChampion = championId;
+      // reset previous champion defense count
+      try { resetDefenseCount(previousChampion); } catch(e){}
+
       await set(ref(db, 'championId'), challengerId);
 
       if (previousChampion && playersOrderArr.includes(previousChampion)) {
@@ -494,7 +582,10 @@ async function submitChallenge(challengerId, description, winnerId){
         try { triggerChampionGlow(1200); } catch (e) { console.error('triggerChampionGlow error', e); }
       }, 60);
 
+      // Show trophy badge for the new champion's first defense count (will be 0 until they defend)
+      // We do not increment here; the badge increments on successful defenses (champion wins)
     } else {
+      // Champion defended (champion wins)
       await set(ref(db, `defeats/${challengerId}`), true);
       const idx = playersOrderArr.indexOf(challengerId);
       if (idx !== -1) {
@@ -502,10 +593,16 @@ async function submitChallenge(challengerId, description, winnerId){
         playersOrderArr.push(challengerId);
         await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
       }
-      // Champion won this challenge — show glow as visual feedback
+
+      // Visual glow and trophy badge
       setTimeout(()=> {
         try { triggerChampionGlow(1000); } catch (e) { console.error('triggerChampionGlow error', e); }
       }, 60);
+
+      try {
+        const champName = players[championId]?.name || 'Champion';
+        showTrophyBadge(champName, championId);
+      } catch (e) { console.error('showTrophyBadge error', e); }
     }
 
     isSweep = computeSweep();
@@ -533,7 +630,6 @@ async function addPlayer(){
   }
 }
 $('add-player-button')?.addEventListener('click', addPlayer);
-
 // --- Firebase listeners ---
 onValue(ref(db, 'players'), snap=>{
   players = snap.val() || {};
@@ -552,8 +648,14 @@ onValue(ref(db, 'playersOrder'), snap=>{
     .sort((a,b)=>a.idx-b.idx).map(e=>e.id);
   renderAll();
 });
+
 onValue(ref(db, 'championId'), snap=>{
+  const prevChampion = championId;
   championId = snap.val();
+  // if champion changed, reset local defense count for the new champ? we already reset previous in submitChallenge
+  if (prevChampion && prevChampion !== championId) {
+    // keep previous counts cleared when submitChallenge handled it; nothing else needed
+  }
   isSweep = computeSweep();
   renderAll();
 });
