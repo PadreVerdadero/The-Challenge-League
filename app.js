@@ -40,20 +40,20 @@ const $ = id => document.getElementById(id);
 // ===== Discord webhook helper (DB-aware; client-side) =====
 // WARNING: webhook in client is public. Consider server-side for production.
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1ncSJPEZErvtiT-qZ7lkS8JZ_FD66BmDKPSTEi_Ms4AJMDnS4Hnve_BNtD27oln8ixja";
-// ===== postToDiscord (sweep-aware, copies recorded match then computes delayed Note) =====
+// ===== postToDiscord (sweep-note and title change) =====
 async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
   if (!DISCORD_WEBHOOK) return;
   const delay = typeof opts.delayMs === 'number' ? opts.delayMs : 10000;
 
   try {
-    // 1) Fetch the recorded match entry (prefer key)
+    // fetch the recorded match (prefer key)
     let recordedMatch = null;
     if (pushKey) {
       const mSnap = await get(ref(db, `matches/${pushKey}`));
       if (mSnap.exists()) recordedMatch = mSnap.val();
     }
 
-    // fallback: most recent match
+    // fallback to most recent match
     if (!recordedMatch) {
       const allSnap = await get(ref(db, 'matches'));
       const allVal = allSnap.exists() ? allSnap.val() : null;
@@ -65,67 +65,88 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
       }
     }
 
-    // final fallback: passed match object
+    // final fallback to the passed object
     if (!recordedMatch) recordedMatch = match || {};
 
-    // If sweep: compose a special sweep notification using the last two matches
-    if (recordedMatch.type === 'sweep') {
-      // Get all matches to find the last two chronological entries
-      const allSnap = await get(ref(db, 'matches'));
-      const allVal = allSnap.exists() ? allSnap.val() : null;
-      let lastTwo = [];
+    // build recorded fields
+    const recChallenger = recordedMatch.challengerName || recordedMatch.challengerId || 'Challenger';
+    const recChampion = recordedMatch.championName || recordedMatch.championId || 'Champion';
+    const recWinner = recordedMatch.winnerName || recordedMatch.winnerId || 'Winner';
+    const recDesc = recordedMatch.description || '';
+    const recType = recordedMatch.type || 'match';
 
-      if (allVal) {
-        lastTwo = Object.entries(allVal)
-          .map(([k,v]) => ({ key: k, val: v }))
-          .sort((a,b) => (b.val.timestamp||0) - (a.val.timestamp||0))
-          .slice(0,2)
-          .map(x => x.val);
-      } else {
-        // fallback to using recordedMatch only
-        lastTwo = [recordedMatch];
-      }
+    // wait so DB settles (note uses post-delay site state)
+    if (delay > 0) await new Promise(r => setTimeout(r, delay));
 
-      const lastMatch = lastTwo[1] || lastTwo[0] || recordedMatch; // the match before the sweep (if exists)
-      const sweepMatch = lastTwo[0] || recordedMatch; // the sweep winner record
+    // read authoritative site state to compute note text
+    const [playersSnap, champSnap, orderSnap] = await Promise.all([
+      get(ref(db, 'players')),
+      get(ref(db, 'championId')),
+      get(ref(db, 'playersOrder'))
+    ]);
+    const playersObj = playersSnap.exists() ? playersSnap.val() : {};
+    const championNow = champSnap.exists() ? champSnap.val() : null;
 
-      const lastChallenger = lastMatch?.challengerName || lastMatch?.challengerId || 'Unknown';
-      const lastChampion = lastMatch?.championName || lastMatch?.championId || 'Unknown';
-      const lastWinner = lastMatch?.winnerName || lastMatch?.winnerId || 'Unknown';
-      const sweepWinner = sweepMatch?.winnerName || sweepMatch?.winnerId || 'Unknown';
-
-      const descriptionParts = [];
-      descriptionParts.push(`Recent match: ${lastChallenger} vs ${lastChampion} — Winner: ${lastWinner}`);
-      if (lastMatch.description) descriptionParts.push(`Match note: ${lastMatch.description}`);
-      descriptionParts.push(`Sweep result: ${sweepWinner} emerged as the sweep winner.`);
-
-      const embed = {
-        title: '🏆 Sweep Completed',
-        description: descriptionParts.join('\n'),
-        color: 0xF1C40F,
-        fields: [
-          { name: 'Recent match (recorded)', value: `${lastChallenger} vs ${lastChampion}`, inline: true },
-          { name: 'Winner (recent match)', value: String(lastWinner), inline: true },
-          { name: 'Sweep winner', value: String(sweepWinner), inline: true },
-          { name: 'Note', value: `The winner of the sweep ${sweepWinner} wins! Now select a new order.` }
-        ],
-        timestamp: new Date(sweepMatch.timestamp || Date.now()).toISOString()
-      };
-
-      const payload = { username: 'Challenge League Bot', embeds: [embed] };
-      const res = await fetch(DISCORD_WEBHOOK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        console.error('Discord webhook error', res.status, await res.text());
-      } else if (pushKey) {
-        try { await set(ref(db, `matches/${pushKey}/discordNotified`), true); } catch(e){}
-      }
-      return;
+    let orderedArr = [];
+    if (orderSnap.exists()){
+      const orderVal = orderSnap.val();
+      orderedArr = Object.entries(orderVal)
+        .map(([k,id])=>({idx: Number(k), id}))
+        .filter(x => x.id)
+        .sort((a,b)=>a.idx-b.idx)
+        .map(e=>e.id);
+    } else {
+      orderedArr = Object.keys(playersObj || {}).sort();
     }
+
+    const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
+    const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : null;
+    const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : recChampion;
+
+    // Determine note and title
+    let noteText;
+    let titleText = recType === 'sweep' ? '🏆 Sweep Recorded' : '🏁 Match Recorded';
+
+    if (recType === 'sweep') {
+      // For sweep: keep recorded fields but change title and note per request
+      titleText = 'Winner!';
+      noteText = `${currentChampionName} now decides how to determine the order.`;
+    } else if (nextChallengerName) {
+      noteText = `${nextChallengerName} now has one week to challenge ${currentChampionName}.`;
+    } else {
+      noteText = `${currentChampionName} is the winner.`;
+    }
+
+    // final embed (recorded fields copied verbatim)
+    const embed = {
+      title: titleText,
+      description: recDesc || undefined,
+      color: recType === 'sweep' ? 0xF1C40F : 0x1ABC9C,
+      fields: [
+        { name: 'Champion (recorded)', value: String(recChampion), inline: true },
+        { name: 'Challenger (recorded)', value: String(recChallenger), inline: true },
+        { name: 'Winner', value: String(recWinner), inline: true },
+        { name: 'Note', value: noteText }
+      ],
+      timestamp: new Date(recordedMatch.timestamp || Date.now()).toISOString()
+    };
+
+    const payload = { username: 'Challenge League Bot', embeds: [embed] };
+    const res = await fetch(DISCORD_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      console.error('Discord webhook error', res.status, await res.text());
+    } else if (pushKey) {
+      try { await set(ref(db, `matches/${pushKey}/discordNotified`), true); } catch(e){}
+    }
+  } catch (err) {
+    console.error('postToDiscord error', err);
+  }
+}
 
     // NON-SWEEP BEHAVIOR (existing flow)
     // Build embed using recorded match fields (so message matches match history exactly)
