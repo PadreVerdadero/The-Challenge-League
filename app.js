@@ -41,9 +41,9 @@ const $ = id => document.getElementById(id);
 // WARNING: webhook in client is public. Consider server-side for production.
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1ncSJPEZErvtiT-qZ7lkS8JZ_FD66BmDKPSTEi_Ms4AJMDnS4Hnve_BNtD27oln8ixja";
 
-async function postToDiscord(match, pushKey, opts = { delayMs: 5000 }) {
+async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
   if (!DISCORD_WEBHOOK) return;
-  const delay = typeof opts.delayMs === 'number' ? opts.delayMs : 5000;
+  const delay = typeof opts.delayMs === 'number' ? opts.delayMs : 10000;
   // allow immediate-post callers to pass 0
   if (delay > 0) await new Promise(r => setTimeout(r, delay));
 
@@ -646,6 +646,7 @@ async function submitChallenge(challengerId, description, winnerId){
     await set(mRef, match);
 
     // Notify Discord (client-side). Pass pushKey so notifier can mark the match as notified.
+    // Default delay is 10 seconds so the Note uses post-delay site state
     postToDiscord(match, mRef.key).catch(e => console.error('Discord notify failed', e));
 
     if (winnerId === challengerId){
@@ -830,3 +831,4 @@ function renderAll(){
 document.addEventListener('DOMContentLoaded', ()=>{
   renderAll();
 });
+  
