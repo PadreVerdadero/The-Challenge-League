@@ -40,26 +40,24 @@ const $ = id => document.getElementById(id);
 // ===== Discord webhook helper (DB-aware; client-side) =====
 // WARNING: webhook in client is public. Consider server-side for production.
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1ncSJPEZErvtiT-qZ7lkS8JZ_FD66BmDKPSTEi_Ms4AJMDnS4Hnve_BNtD27oln8ixja";
-// ===== postToDiscord that copies the recorded match entry then computes delayed Note =====
+// ===== postToDiscord (sweep-aware, copies recorded match then computes delayed Note) =====
 async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
   if (!DISCORD_WEBHOOK) return;
   const delay = typeof opts.delayMs === 'number' ? opts.delayMs : 10000;
 
   try {
-    // 1) Fetch the recorded match from DB so we mirror match history exactly
+    // 1) Fetch the recorded match entry (prefer key)
     let recordedMatch = null;
-
     if (pushKey) {
       const mSnap = await get(ref(db, `matches/${pushKey}`));
       if (mSnap.exists()) recordedMatch = mSnap.val();
     }
 
-    // fallback: if no pushKey or couldn't load it, use the most recent match entry
+    // fallback: most recent match
     if (!recordedMatch) {
       const allSnap = await get(ref(db, 'matches'));
       const allVal = allSnap.exists() ? allSnap.val() : null;
       if (allVal) {
-        // entries are stored as push keys -> values
         const recent = Object.entries(allVal)
           .map(([k,v]) => ({ key: k, val: v }))
           .sort((a,b) => (b.val.timestamp||0) - (a.val.timestamp||0))[0];
@@ -67,20 +65,80 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
       }
     }
 
-    // If still no match found, fall back to the match object passed in
+    // final fallback: passed match object
     if (!recordedMatch) recordedMatch = match || {};
 
-    // Build the base embed using the recorded match fields (exact copy of history)
+    // If sweep: compose a special sweep notification using the last two matches
+    if (recordedMatch.type === 'sweep') {
+      // Get all matches to find the last two chronological entries
+      const allSnap = await get(ref(db, 'matches'));
+      const allVal = allSnap.exists() ? allSnap.val() : null;
+      let lastTwo = [];
+
+      if (allVal) {
+        lastTwo = Object.entries(allVal)
+          .map(([k,v]) => ({ key: k, val: v }))
+          .sort((a,b) => (b.val.timestamp||0) - (a.val.timestamp||0))
+          .slice(0,2)
+          .map(x => x.val);
+      } else {
+        // fallback to using recordedMatch only
+        lastTwo = [recordedMatch];
+      }
+
+      const lastMatch = lastTwo[1] || lastTwo[0] || recordedMatch; // the match before the sweep (if exists)
+      const sweepMatch = lastTwo[0] || recordedMatch; // the sweep winner record
+
+      const lastChallenger = lastMatch?.challengerName || lastMatch?.challengerId || 'Unknown';
+      const lastChampion = lastMatch?.championName || lastMatch?.championId || 'Unknown';
+      const lastWinner = lastMatch?.winnerName || lastMatch?.winnerId || 'Unknown';
+      const sweepWinner = sweepMatch?.winnerName || sweepMatch?.winnerId || 'Unknown';
+
+      const descriptionParts = [];
+      descriptionParts.push(`Recent match: ${lastChallenger} vs ${lastChampion} — Winner: ${lastWinner}`);
+      if (lastMatch.description) descriptionParts.push(`Match note: ${lastMatch.description}`);
+      descriptionParts.push(`Sweep result: ${sweepWinner} emerged as the sweep winner.`);
+
+      const embed = {
+        title: '🏆 Sweep Completed',
+        description: descriptionParts.join('\n'),
+        color: 0xF1C40F,
+        fields: [
+          { name: 'Recent match (recorded)', value: `${lastChallenger} vs ${lastChampion}`, inline: true },
+          { name: 'Winner (recent match)', value: String(lastWinner), inline: true },
+          { name: 'Sweep winner', value: String(sweepWinner), inline: true },
+          { name: 'Note', value: `The winner of the sweep ${sweepWinner} wins! Now select a new order.` }
+        ],
+        timestamp: new Date(sweepMatch.timestamp || Date.now()).toISOString()
+      };
+
+      const payload = { username: 'Challenge League Bot', embeds: [embed] };
+      const res = await fetch(DISCORD_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        console.error('Discord webhook error', res.status, await res.text());
+      } else if (pushKey) {
+        try { await set(ref(db, `matches/${pushKey}/discordNotified`), true); } catch(e){}
+      }
+      return;
+    }
+
+    // NON-SWEEP BEHAVIOR (existing flow)
+    // Build embed using recorded match fields (so message matches match history exactly)
     const recChallenger = recordedMatch.challengerName || recordedMatch.challengerId || 'Challenger';
     const recChampion = recordedMatch.championName || recordedMatch.championId || 'Champion';
     const recWinner = recordedMatch.winnerName || recordedMatch.winnerId || 'Winner';
     const recDesc = recordedMatch.description || '';
-    const recType = recordedMatch.type || (recordedMatch.winnerId && recordedMatch.winnerId === recordedMatch.challengerId ? 'title-change' : 'match');
+    const recType = recordedMatch.type || 'match';
 
-    // Wait the requested delay so DB updates settle (and so Note is computed from post-delay site state)
+    // Wait the requested delay so DB updates settle (and Note uses post-delay site state)
     if (delay > 0) await new Promise(r => setTimeout(r, delay));
 
-    // 2) Read authoritative site state to compute the Note (next challenger / current champion)
+    // Read authoritative site state to compute Note (next challenger / current champion)
     const [playersSnap, champSnap, orderSnap] = await Promise.all([
       get(ref(db, 'players')),
       get(ref(db, 'championId')),
@@ -106,7 +164,7 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : recChampion;
 
     let noteText;
-    if (recType === 'sweep' || recordedMatch.type === 'sweep') {
+    if (recType === 'sweep') {
       noteText = `${currentChampionName} swept the queue — please plan a new order for the League.`;
     } else if (nextChallengerName) {
       noteText = `${nextChallengerName} now has one week to challenge ${currentChampionName}.`;
@@ -114,11 +172,10 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
       noteText = `${currentChampionName} is the winner.`;
     }
 
-    // 3) Final embed: use recorded fields for the match info, add the delayed Note
     const embed = {
-      title: (recordedMatch.type === 'sweep') ? '🏆 Sweep Recorded' : '🏁 Match Recorded',
+      title: recType === 'sweep' ? '🏆 Sweep Recorded' : '🏁 Match Recorded',
       description: recDesc || undefined,
-      color: (recordedMatch.type === 'sweep') ? 0xF1C40F : 0x1ABC9C,
+      color: recType === 'sweep' ? 0xF1C40F : 0x1ABC9C,
       fields: [
         { name: 'Champion (recorded)', value: String(recChampion), inline: true },
         { name: 'Challenger (recorded)', value: String(recChallenger), inline: true },
@@ -138,10 +195,8 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
 
     if (!res.ok) {
       console.error('Discord webhook error', res.status, await res.text());
-    } else {
-      if (pushKey) {
-        try { await set(ref(db, `matches/${pushKey}/discordNotified`), true); } catch(e){}
-      }
+    } else if (pushKey) {
+      try { await set(ref(db, `matches/${pushKey}/discordNotified`), true); } catch(e){}
     }
   } catch (err) {
     console.error('postToDiscord error', err);
@@ -300,21 +355,48 @@ function renderChampionActions(){
 
       renderAll();
 
-      // Notify Discord immediately about the new next challenger (no extra delay)
+      // Immediately post an "Order set" notification that the order has been set and show current challenger/champion
       try {
-        const pseudoMatch = {
-          challengerId: null,
-          challengerName: null,
-          championId: pick,
-          championName: players[pick]?.name || pick,
-          winnerId: null,
-          winnerName: null,
-          description: 'Order locked in',
-          timestamp: Date.now()
+        const [playersSnap, champSnap, orderSnap] = await Promise.all([
+          get(ref(db, 'players')),
+          get(ref(db, 'championId')),
+          get(ref(db, 'playersOrder'))
+        ]);
+        const playersObj = playersSnap.exists() ? playersSnap.val() : {};
+        const championNow = champSnap.exists() ? champSnap.val() : null;
+
+        let orderedArr = [];
+        if (orderSnap.exists()){
+          const orderVal = orderSnap.val();
+          orderedArr = Object.entries(orderVal)
+            .map(([k,id])=>({idx: Number(k), id}))
+            .filter(x => x.id)
+            .sort((a,b)=>a.idx-b.idx)
+            .map(e=>e.id);
+        } else {
+          orderedArr = Object.keys(playersObj || {}).sort();
+        }
+
+        const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
+        const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : 'No active challenger';
+        const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : 'No champion';
+
+        const embed = {
+          title: '🔒 Order Set',
+          description: `Order locked in. ${nextChallengerName} now has one week to challenge ${currentChampionName}.`,
+          color: 0x6A9AEB,
+          fields: [
+            { name: 'Current Champion', value: String(currentChampionName), inline: true },
+            { name: 'Current Challenger', value: String(nextChallengerName), inline: true },
+            { name: 'Note', value: 'Order has been set' }
+          ],
+          timestamp: new Date().toISOString()
         };
-        // Post immediately (delayMs:0) so notifier reads DB and computes next challenger
-        postToDiscord(pseudoMatch, null, { delayMs: 0 }).catch(e => console.error('Lock-in Discord notify failed', e));
-      } catch(e){
+
+        const payload = { username: 'Challenge League Bot', embeds: [embed] };
+        const r = await fetch(DISCORD_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!r.ok) console.error('Lock-in Discord webhook error', r.status, await r.text());
+      } catch (e) {
         console.error('Lock-in notify error', e);
       }
     });
@@ -634,6 +716,59 @@ function openChallengeModal(challengerId){
   panel.appendChild(row);
   modal.appendChild(panel);
   document.body.appendChild(modal);
+  // --- Challenge modal ---
+function openChallengeModal(challengerId){
+  if (!championId) return;
+  if (isSweep) return;
+  if ($('challenge-modal')) return;
+
+  const challenger = players[challengerId];
+  const modal = document.createElement('div'); modal.id='challenge-modal';
+  modal.style.position='fixed'; modal.style.left=0; modal.style.top=0;
+  modal.style.width='100%'; modal.style.height='100%';
+  modal.style.display='flex'; modal.style.alignItems='center'; modal.style.justifyContent='center';
+  modal.style.background='rgba(0,0,0,0.45)'; modal.style.zIndex=10000;
+
+  const panel = document.createElement('div');
+  panel.style.background='#0b1220'; panel.style.padding='16px'; panel.style.borderRadius='10px';
+  panel.style.minWidth='320px'; panel.style.maxWidth='560px';
+  panel.style.boxShadow='0 8px 30px rgba(0,0,0,0.6)'; panel.style.color='#e6eef8';
+
+  const header = document.createElement('h3');
+  header.textContent = `Record Challenge: ${challenger.name} vs ${players[championId].name}`;
+  panel.appendChild(header);
+
+  const desc = document.createElement('textarea');
+  desc.rows=4; desc.style.width='100%'; desc.placeholder='Description (optional)';
+  panel.appendChild(desc);
+
+  const row = document.createElement('div');
+  row.style.display='flex'; row.style.gap='8px'; row.style.marginTop='12px';
+
+  const challengerBtn = document.createElement('button');
+  challengerBtn.textContent = `${challenger.name} wins`;
+  challengerBtn.style.background='#2b8a3e'; challengerBtn.style.color='#fff';
+  challengerBtn.addEventListener('click', async ()=>{
+    await submitChallenge(challengerId, desc.value||'', challengerId);
+    closeModal();
+  });
+
+  const champBtn = document.createElement('button');
+  champBtn.textContent = `${players[championId].name} wins`;
+  champBtn.style.background='#1f6feb'; champBtn.style.color='#fff';
+  champBtn.addEventListener('click', async ()=>{
+    await submitChallenge(challengerId, desc.value||'', championId);
+    closeModal();
+  });
+
+  const cancel = document.createElement('button');
+  cancel.textContent='Cancel';
+  cancel.addEventListener('click', closeModal);
+
+  row.append(challengerBtn, champBtn, cancel);
+  panel.appendChild(row);
+  modal.appendChild(panel);
+  document.body.appendChild(modal);
     function closeModal(){
     const m=$('challenge-modal'); if(m) m.remove();
     currentChallengerId = null;
@@ -715,7 +850,7 @@ async function submitChallenge(challengerId, description, winnerId){
     console.error('submitChallenge error', e);
   }
 }
-// --- Add Player ---
+  // --- Add Player ---
 async function addPlayer(){
   const input = $('new-player-name'); if (!input) return;
   const name = input.value.trim(); if (!name) return alert('Enter a name');
@@ -761,7 +896,7 @@ onValue(ref(db, 'championId'), snap=>{
   isSweep = computeSweep();
   renderAll();
 });
-onValue(ref(db, 'matches'), snap=>{
+  onValue(ref(db, 'matches'), snap=>{
   matches = Object.values(snap.val() || {});
   renderMatchHistory();
 });
@@ -804,7 +939,7 @@ onValue(ref(db, 'defeats'), async snap=>{
 
   renderAll();
 });
-// Timer listener: update countdown and re-render safely when DOM is ready
+  // Timer listener: update countdown and re-render safely when DOM is ready
 onValue(ref(db, 'timer/endTimestamp'), snap=>{
   timerEnd = snap.val() || null;
 
