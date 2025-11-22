@@ -328,6 +328,10 @@ function renderMatchHistory(){
 }
 // --- Champion fire and sweep explosion helpers ---
 
+// Keep previous explosion and confetti helpers intact for sweep/confetti
+// Create a simple glow effect function (CSS-only class toggle)
+
+// Ensure effects container exists (in case other effects reuse it)
 function ensureEffectsContainer(){
   let container = document.getElementById('effects-container');
   if (!container){
@@ -345,61 +349,24 @@ function ensureEffectsContainer(){
   return container;
 }
 
-function triggerChampionFire(){
+// Instead of an anchored flame, implement a simple CSS glow toggle
+function triggerChampionGlow(duration = 1200){
   const champEl = document.querySelector('.champ-name');
   if (!champEl) return;
-
-  // bounding rect relative to viewport
-  const rect = champEl.getBoundingClientRect();
-  // account for page scroll to convert to document coordinates
-  const scrollX = window.scrollX || window.pageXOffset || 0;
-  const scrollY = window.scrollY || window.pageYOffset || 0;
-
-  const container = ensureEffectsContainer();
-
-  // Create wrapper in fixed overlay but positioned using document coords -> convert to fixed coords
-  const wrapper = document.createElement('div');
-  wrapper.className = 'champ-fire-effect';
-  wrapper.style.position = 'absolute';
-  // center horizontally on champion
-  const centerX = rect.left + (rect.width / 2) + scrollX;
-  // place vertically slightly below champion (tweak offsetPx to move up/down)
-  const offsetPx = 6; // positive moves fire lower, negative moves it up
-  const topY = rect.bottom + scrollY - offsetPx;
-
-  wrapper.style.left = `${centerX}px`;
-  wrapper.style.top = `${topY}px`;
-  wrapper.style.transform = 'translate(-50%, 0)';
-  wrapper.style.width = `${Math.max(120, rect.width * 1.2)}px`;
-  wrapper.style.height = '40px';
-  wrapper.style.pointerEvents = 'none';
-  wrapper.style.zIndex = 9998;
-
-  const fire = document.createElement('div');
-  fire.className = 'champ-fire';
-  fire.style.position = 'relative';
-  fire.style.left = '0';
-  fire.style.top = '0';
-  fire.style.width = '100%';
-  fire.style.height = '100%';
-  fire.style.overflow = 'visible';
-
-  // Create flames distributed across the wrapper width
-  for (let i = 0; i < 5; i++){
-    const f = document.createElement('div');
-    f.className = 'flame';
-    // position using percentage across the wrapper to keep alignment stable
-    const leftPercent = 8 + i * 22;
-    f.style.left = `${leftPercent}%`;
-    fire.appendChild(f);
-  }
-
-  wrapper.appendChild(fire);
-  container.appendChild(wrapper);
-
-  // Remove after animation duration (match your CSS ~2400ms)
-  setTimeout(() => { wrapper.remove(); }, 2600);
+  // Add class that your CSS will animate (see style.css add .champ-glow)
+  champEl.classList.add('champ-glow');
+  // Ensure removal after duration (allow multiple triggers to re-add cleanly)
+  setTimeout(()=> {
+    champEl.classList.remove('champ-glow');
+  }, duration);
 }
+
+function triggerChampionFire(){
+  // Keep as a no-op alias in case older code calls it; prefer glow instead
+  // If you later want a different effect, implement here.
+  triggerChampionGlow(1800);
+}
+
 // Explosion animation for sweep: flash + particle burst
 function triggerSweepExplosion() {
   const overlay = document.createElement('div');
@@ -528,12 +495,13 @@ async function submitChallenge(challengerId, description, winnerId){
       await set(ref(db, 'timer/endTimestamp'), Date.now() + WEEK_MS);
       isSweep = false;
       triggerConfetti();
-      // Ensure the champion DOM is rendered before showing the fire animation
-      // so the temporary .champ-fire element isn't removed immediately.
-      // Small delay ensures renderAll has run if submitChallenge is followed by a render.
-      setTimeout(() => {
-        try { triggerChampionFire(); } catch (e) { console.error('triggerChampionFire error', e); }
-      }, 50);
+
+      // Ensure UI re-renders and then trigger glow effect for champion
+      // Small timeout ensures renderChampion has created the .champ-name element
+      setTimeout(()=> {
+        try { triggerChampionGlow(1200); } catch (e) { console.error('triggerChampionGlow error', e); }
+      }, 60);
+
     } else {
       await set(ref(db, `defeats/${challengerId}`), true);
       const idx = playersOrderArr.indexOf(challengerId);
@@ -542,8 +510,11 @@ async function submitChallenge(challengerId, description, winnerId){
         playersOrderArr.push(challengerId);
         await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
       }
-      // Champion won this challenge — visual fire
-      triggerChampionFire();
+      // Champion won this challenge — show glow as visual feedback
+      // Use short delay to ensure champion element exists
+      setTimeout(()=> {
+        try { triggerChampionGlow(1000); } catch (e) { console.error('triggerChampionGlow error', e); }
+      }, 60);
     }
 
     isSweep = computeSweep();
