@@ -116,7 +116,6 @@ function computeSweep(){
   return challengers.every(id => defeated.has(id));
 }
 
-// Expose for console testing (only if defined)
 if (typeof computeSweep === 'function') window.computeSweep = computeSweep;
 
 // --- Champion rendering ---
@@ -177,7 +176,6 @@ function renderChallengeSection(){
   const ordered = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
   const nextUpId = ordered.find(id => id && id !== championId && players[id]) || null;
 
-  // Determine whether a challenge countdown is active (positive remaining time)
   const countdownActive = Boolean(timerEnd && (timerEnd - Date.now()) > 0);
 
   // Only set currentChallengerId when there is an active countdown, a champion, not a sweep, and a next-up exists
@@ -187,11 +185,12 @@ function renderChallengeSection(){
     currentChallengerId = null;
   }
   window._currentChallengerId = () => currentChallengerId;
-    const row = document.createElement('div'); row.className = 'next-up-row';
+
+  const row = document.createElement('div'); row.className = 'next-up-row';
   const name = document.createElement('div'); name.className = 'next-up-name';
 
-  // Show challenger name only when countdown is active; otherwise show "No active challenge"
-  if (countdownActive && nextUpId) {
+  // Show challenger name only when countdown is active and not a sweep; otherwise show "No active challenge"
+  if (countdownActive && nextUpId && !isSweep) {
     name.textContent = players[nextUpId]?.name || 'Unknown';
   } else {
     name.textContent = 'No active challenge';
@@ -202,7 +201,6 @@ function renderChallengeSection(){
   btn.className = 'record-btn';
   btn.textContent = 'Record Challenge';
 
-  // Enable button only when countdownActive is true and there's an actionable challenger
   if (!countdownActive || !nextUpId || !championId || isSweep) {
     btn.disabled = true;
   } else {
@@ -223,140 +221,17 @@ function renderChallengeSection(){
   el.appendChild(timerWrap);
   updateTimerDisplay();
 }
-
-// --- Roster rendering ---
-function renderRoster(){
-  const el = $('roster'); if (!el) return;
-  el.innerHTML = `<h2>Roster</h2>`;
-  if (!players || Object.keys(players).length === 0) {
-    el.innerHTML += '<p>No players yet</p>';
-    return;
-  }
-
-  const orderedIds = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
-  const visibleIds = orderedIds.filter(id => id !== championId && id !== currentChallengerId && players[id]);
-
-  visibleIds.forEach((id, position)=>{
-    const p = players[id]; if (!p) return;
-
-    const row = document.createElement('div'); row.className='roster-row';
-    const handle = document.createElement('div'); handle.className='order-handle'; handle.textContent='☰';
-
-    const nameBtn = document.createElement('button');
-    nameBtn.className='roster-name';
-    nameBtn.textContent = p.name;
-
-    if (defeated.has(id)) {
-      nameBtn.classList.add('defeated');
-    } else {
-      nameBtn.classList.add('active');
-    }
-
-    const addBtn = $('add-player-button');
-    if (addBtn && !addBtn.disabled){
-      nameBtn.addEventListener('click', async ()=>{
-        if (confirm(`Remove player ${p.name}?`)){
-          await remove(ref(db, `players/${id}`));
-        }
-      });
-    }
-
-    row.append(handle, nameBtn);
-
-    const movesDisabled = Boolean(championId);
-
-    if (visibleIds.length > 1){
-      const up = document.createElement('button');
-      up.className = 'move-btn';
-      up.textContent = '↑';
-      up.disabled = movesDisabled || (position === 0);
-      up.addEventListener('click', async (e)=>{
-        e.stopPropagation();
-        if (movesDisabled) return;
-        const idx = playersOrderArr.indexOf(id);
-        if (idx > 0){
-          [playersOrderArr[idx-1], playersOrderArr[idx]] = [playersOrderArr[idx], playersOrderArr[idx-1]];
-          await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
-        }
-      });
-
-      const down = document.createElement('button');
-      down.className = 'move-btn';
-      down.textContent = '↓';
-      down.disabled = movesDisabled || (position === visibleIds.length-1);
-      down.addEventListener('click', async (e)=>{
-        e.stopPropagation();
-        if (movesDisabled) return;
-        const idx = playersOrderArr.indexOf(id);
-        if (idx >= 0 && idx < playersOrderArr.length-1){
-          [playersOrderArr[idx+1], playersOrderArr[idx]] = [playersOrderArr[idx], playersOrderArr[idx+1]];
-          await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
-        }
-      });
-
-      row.append(up, down);
-    }
-
-    el.appendChild(row);
-  });
-}
-
-// --- Match History rendering ---
-function renderMatchHistory(){
-  const el = $('match-list'); if (!el) return;
-  el.innerHTML = `<h2>Match History</h2>`;
-
-  const sorted = matches.slice().sort((a,b)=> (b.timestamp||0)-(a.timestamp||0));
-  sorted.forEach(m=>{
-    const time = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
-    const div = document.createElement('div');
-    if (m.type === 'sweep') {
-      div.innerHTML = `🏆 Winner - ${m.winnerName} (Sweep) ${time ? `(${time})` : ''}`;
-    } else {
-      div.innerHTML = `🏁 <strong>${m.challengerName||'Unknown'}</strong> vs <strong>${m.championName||'Unknown'}</strong> — Winner: <strong>${m.winnerName||'Unknown'}</strong> ${time ? `(${time})` : ''}`;
-      if (m.description){
-        const d = document.createElement('div');
-        d.className='match-desc';
-        d.textContent = m.description;
-        el.appendChild(d);
-      }
-    }
-    el.appendChild(div);
-  });
-}
-// --- Champion glow, trophy badge, and sweep explosion helpers ---
-
-// Ensure effects container exists (in case other effects reuse it)
-function ensureEffectsContainer(){
-  let container = document.getElementById('effects-container');
-  if (!container){
-    container = document.createElement('div');
-    container.id = 'effects-container';
-    container.style.position = 'fixed';
-    container.style.left = '0';
-    container.style.top = '0';
-    container.style.width = '100%';
-    container.style.height = '100%';
-    container.style.pointerEvents = 'none';
-    container.style.zIndex = 9999;
-    document.body.appendChild(container);
-  }
-  return container;
-}
 // Instead of an anchored flame, implement a simple CSS glow toggle
 function triggerChampionGlow(duration = 1200){
   const champEl = document.querySelector('.champ-name');
   if (!champEl) return;
-  // Add class that your CSS will animate (see style.css add .champ-glow)
   champEl.classList.add('champ-glow');
-  // Ensure removal after duration (allow multiple triggers to re-add cleanly)
   setTimeout(()=> {
     champEl.classList.remove('champ-glow');
   }, duration);
 }
 
 function triggerChampionFire(){
-  // Keep as a no-op alias in case older code calls it; prefer glow instead
   triggerChampionGlow(1800);
 }
 
@@ -393,8 +268,6 @@ function triggerSweepExplosion() {
 }
 
 // --- Trophy badge helpers ---
-
-// Ensure a small live region for screen readers exists
 function ensureLiveAnnounce(){
   let live = document.getElementById('site-live-announce');
   if (!live){
@@ -414,7 +287,6 @@ function ensureLiveAnnounce(){
   return live;
 }
 
-// Per-champion defense count stored in localStorage (simple persistence)
 function getDefenseCount(champId){
   if (!champId) return 0;
   try {
@@ -426,29 +298,24 @@ function setDefenseCount(champId, n){
   try { localStorage.setItem(`cl:defenses:${champId}`, String(n)); } catch(e){}
 }
 
-// Small HTML-escaping helper for names
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 }
 
-// Visual trophy badge pop-in
 function showTrophyBadge(champName, champId){
-  ensureEffectsContainer();
   ensureLiveAnnounce();
 
-  // Increment persisted counter
   const newCount = getDefenseCount(champId) + 1;
   setDefenseCount(champId, newCount);
 
-  // Create badge
   const badge = document.createElement('div');
   badge.className = 'trophy-badge';
   badge.innerHTML = `
     <div class="trophy-emoji">🏆</div>
-    <div class="trophy-text"><strong>${escapeHtml(champName)}</strong><div class="trophy-count">Defenses: <span class="trophy-count-num">${newCount}</span></div></div>
+    <div class="trophy-text"><strong>${escapeHtml(champName)}</strong>
+      <div class="trophy-count">Defenses: <span class="trophy-count-num">${newCount}</span></div>
+    </div>
   `;
-
-  // Position: fixed top-right but small offset so it doesn't overlap UI
   badge.style.position = 'fixed';
   badge.style.top = '24px';
   badge.style.right = '24px';
@@ -456,22 +323,16 @@ function showTrophyBadge(champName, champId){
   badge.style.pointerEvents = 'none';
   document.body.appendChild(badge);
 
-  // Announce for screen readers
   const live = ensureLiveAnnounce();
   live.textContent = `${champName} defended the title. Defenses: ${newCount}`;
 
-  // Trigger animation via CSS class
   requestAnimationFrame(()=> badge.classList.add('trophy-badge--enter'));
-
-  // Remove after duration
   setTimeout(()=> {
     badge.classList.remove('trophy-badge--enter');
-    // let exit animation run then remove
     setTimeout(()=> badge.remove(), 360);
   }, 2800);
 }
 
-// Reset defense count for a given champion id (call when champion changes)
 function resetDefenseCount(champId){
   if (!champId) return;
   try { localStorage.removeItem(`cl:defenses:${champId}`); } catch(e){}
@@ -556,11 +417,8 @@ async function submitChallenge(challengerId, description, winnerId){
     await set(mRef, match);
 
     if (winnerId === challengerId){
-      // New champion crowned
       const previousChampion = championId;
-      // reset previous champion defense count
       try { resetDefenseCount(previousChampion); } catch(e){}
-
       await set(ref(db, 'championId'), challengerId);
 
       if (previousChampion && playersOrderArr.includes(previousChampion)) {
@@ -577,15 +435,11 @@ async function submitChallenge(challengerId, description, winnerId){
       isSweep = false;
       triggerConfetti();
 
-      // Ensure UI re-renders and then trigger glow effect for champion
       setTimeout(()=> {
         try { triggerChampionGlow(1200); } catch (e) { console.error('triggerChampionGlow error', e); }
       }, 60);
 
-      // Show trophy badge for the new champion's first defense count (will be 0 until they defend)
-      // We do not increment here; the badge increments on successful defenses (champion wins)
     } else {
-      // Champion defended (champion wins)
       await set(ref(db, `defeats/${challengerId}`), true);
       const idx = playersOrderArr.indexOf(challengerId);
       if (idx !== -1) {
@@ -612,7 +466,6 @@ async function submitChallenge(challengerId, description, winnerId){
     console.error('submitChallenge error', e);
   }
 }
-
 // --- Add Player ---
 async function addPlayer(){
   const input = $('new-player-name'); if (!input) return;
@@ -630,6 +483,7 @@ async function addPlayer(){
   }
 }
 $('add-player-button')?.addEventListener('click', addPlayer);
+
 // --- Firebase listeners ---
 onValue(ref(db, 'players'), snap=>{
   players = snap.val() || {};
@@ -652,9 +506,8 @@ onValue(ref(db, 'playersOrder'), snap=>{
 onValue(ref(db, 'championId'), snap=>{
   const prevChampion = championId;
   championId = snap.val();
-  // if champion changed, reset local defense count for the new champ? we already reset previous in submitChallenge
   if (prevChampion && prevChampion !== championId) {
-    // keep previous counts cleared when submitChallenge handled it; nothing else needed
+    // previous champion reset handled in submitChallenge when title changes
   }
   isSweep = computeSweep();
   renderAll();
@@ -676,7 +529,6 @@ onValue(ref(db, 'defeats'), async snap=>{
   // If a sweep just occurred (transition false -> true), record it once.
   if (isSweep && !prevIsSweep) {
     try {
-      // Read authoritative championId and player name from DB to avoid race conditions
       const championSnap = await get(ref(db, 'championId'));
       const currentChampionId = championSnap.exists() ? championSnap.val() : null;
 
