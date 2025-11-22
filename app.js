@@ -37,6 +37,14 @@ window._currentChallengerId = () => currentChallengerId;
 
 const $ = id => document.getElementById(id);
 
+// Safety stubs to avoid early runtime crashes if listeners fire before full parse
+if (typeof renderRoster !== 'function') {
+  window.renderRoster = function(){ /* noop until real impl loads */ };
+}
+if (typeof renderMatchHistory !== 'function') {
+  window.renderMatchHistory = function(){ /* noop until real impl loads */ };
+}
+
 // --- Section ensure helper (prevents silent render failures) ---
 function ensureSection(id, title){
   let el = document.getElementById(id);
@@ -131,7 +139,6 @@ function computeSweep(){
   return challengers.every(id => defeated.has(id));
 }
 if (typeof computeSweep === 'function') window.computeSweep = computeSweep;
-
 // --- Champion rendering ---
 function renderChampion(){
   const el = ensureSection('champion-card', 'Champion');
@@ -182,6 +189,7 @@ function renderChampionActions(){
     area.appendChild(btn);
   }
 }
+
 // --- Challenge section ---
 function renderChallengeSection(){
   const el = ensureSection('challenge-section', 'Challenger');
@@ -192,7 +200,6 @@ function renderChallengeSection(){
 
   const countdownActive = Boolean(timerEnd && (timerEnd - Date.now()) > 0);
 
-  // Only set currentChallengerId when there is an active countdown, a champion, not a sweep, and a next-up exists
   if (championId && !isSweep && nextUpId && countdownActive) {
     currentChallengerId = nextUpId;
   } else {
@@ -203,7 +210,6 @@ function renderChallengeSection(){
   const row = document.createElement('div'); row.className = 'next-up-row';
   const name = document.createElement('div'); name.className = 'next-up-name';
 
-  // Show challenger name only when countdown is active and not a sweep; otherwise show "No active challenge"
   if (countdownActive && nextUpId && !isSweep) {
     name.textContent = players[nextUpId]?.name || 'Unknown';
   } else {
@@ -312,7 +318,6 @@ function renderRoster(){
     el.appendChild(row);
   });
 }
-
 // --- Match History rendering ---
 function renderMatchHistory(){
   const el = ensureSection('match-list', 'Match History');
@@ -330,15 +335,14 @@ function renderMatchHistory(){
         const d = document.createElement('div');
         d.className='match-desc';
         d.textContent = m.description;
-        div.appendChild(d); // attach description to the current match row
+        div.appendChild(d);
       }
     }
     el.appendChild(div);
   });
 }
-// --- Champion glow, trophy badge, and sweep explosion helpers ---
 
-// Ensure effects container exists (if you plan to reuse for overlays)
+// --- Champion glow, trophy badge, and sweep explosion helpers ---
 function ensureEffectsContainer(){
   let container = document.getElementById('effects-container');
   if (!container){
@@ -356,7 +360,6 @@ function ensureEffectsContainer(){
   return container;
 }
 
-// Glow toggle
 function triggerChampionGlow(duration = 1200){
   const champEl = document.querySelector('.champ-name');
   if (!champEl) return;
@@ -367,7 +370,6 @@ function triggerChampionGlow(duration = 1200){
 }
 function triggerChampionFire(){ triggerChampionGlow(1800); }
 
-// Sweep explosion (visual only)
 function triggerSweepExplosion() {
   const overlay = document.createElement('div');
   overlay.className = 'explosion-overlay';
@@ -398,7 +400,6 @@ function triggerSweepExplosion() {
   document.body.appendChild(overlay);
   setTimeout(()=> overlay.remove(), 900);
 }
-
 // --- Trophy badge helpers ---
 function ensureLiveAnnounce(){
   let live = document.getElementById('site-live-announce');
@@ -429,6 +430,10 @@ function setDefenseCount(champId, n){
   if (!champId) return;
   try { localStorage.setItem(`cl:defenses:${champId}`, String(n)); } catch(e){}
 }
+function resetDefenseCount(champId){
+  if (!champId) return;
+  try { localStorage.removeItem(`cl:defenses:${champId}`); } catch(e){}
+}
 
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
@@ -436,7 +441,6 @@ function escapeHtml(str){
 
 function showTrophyBadge(champName, champId){
   ensureLiveAnnounce();
-
   const newCount = getDefenseCount(champId) + 1;
   setDefenseCount(champId, newCount);
 
@@ -463,11 +467,6 @@ function showTrophyBadge(champName, champId){
     badge.classList.remove('trophy-badge--enter');
     setTimeout(()=> badge.remove(), 360);
   }, 2800);
-}
-
-function resetDefenseCount(champId){
-  if (!champId) return;
-  try { localStorage.removeItem(`cl:defenses:${champId}`); } catch(e){}
 }
 // --- Challenge modal ---
 function openChallengeModal(challengerId){
@@ -580,7 +579,6 @@ async function submitChallenge(challengerId, description, winnerId){
         await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
       }
 
-      // Visual glow and trophy badge
       setTimeout(()=> {
         try { triggerChampionGlow(1000); } catch (e) { console.error('triggerChampionGlow error', e); }
       }, 60);
@@ -598,6 +596,7 @@ async function submitChallenge(challengerId, description, winnerId){
     console.error('submitChallenge error', e);
   }
 }
+
 // --- Add Player ---
 async function addPlayer(){
   const input = $('new-player-name'); if (!input) return;
@@ -658,7 +657,6 @@ onValue(ref(db, 'defeats'), async snap=>{
   defeated = new Set(keys);
   isSweep = computeSweep();
 
-  // If a sweep just occurred (transition false -> true), record it once.
   if (isSweep && !prevIsSweep) {
     try {
       const championSnap = await get(ref(db, 'championId'));
@@ -700,7 +698,6 @@ onValue(ref(db, 'timer/endTimestamp'), snap=>{
     updateTimerDisplay();
   }
 
-  // Guarded re-render (prevents early render before containers exist)
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     renderAll();
   } else {
@@ -710,7 +707,6 @@ onValue(ref(db, 'timer/endTimestamp'), snap=>{
 
 // --- Helper to render everything ---
 function renderAll(){
-  // Ensure containers exist before rendering sections
   ensureSection('champion-card', 'Champion');
   ensureSection('challenge-section', 'Challenger');
   ensureSection('roster', 'Roster');
@@ -718,8 +714,9 @@ function renderAll(){
 
   renderChampion();
   renderChallengeSection();
-  renderRoster();
-  renderMatchHistory();
+
+  if (typeof renderRoster === 'function') renderRoster();
+  if (typeof renderMatchHistory === 'function') renderMatchHistory();
 
   const addBtn = $('add-player-button');
   if (addBtn){
