@@ -478,6 +478,12 @@ async function submitChallenge(challengerId, description, winnerId){
       await set(ref(db, 'timer/endTimestamp'), Date.now() + WEEK_MS);
       isSweep = false;
       triggerConfetti();
+      // Ensure the champion DOM is rendered before showing the fire animation
+      // so the temporary .champ-fire element isn't removed immediately.
+      // Small delay ensures renderAll has run if submitChallenge is followed by a render.
+      setTimeout(() => {
+        try { triggerChampionFire(); } catch (e) { console.error('triggerChampionFire error', e); }
+      }, 50);
     } else {
       await set(ref(db, `defeats/${challengerId}`), true);
       const idx = playersOrderArr.indexOf(challengerId);
