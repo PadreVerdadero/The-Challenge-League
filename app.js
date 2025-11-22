@@ -176,9 +176,12 @@ function renderChallengeSection(){
 
   const ordered = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
   const nextUpId = ordered.find(id => id && id !== championId && players[id]) || null;
-  const nextUpName = nextUpId ? (players[nextUpId]?.name || 'Unknown') : 'No one';
 
-  if (championId && !isSweep && nextUpId) {
+  // Determine whether a challenge countdown is active (positive remaining time)
+  const countdownActive = Boolean(timerEnd && (timerEnd - Date.now()) > 0);
+
+  // Only set currentChallengerId when there is an active countdown, a champion, not a sweep, and a next-up exists
+  if (championId && !isSweep && nextUpId && countdownActive) {
     currentChallengerId = nextUpId;
   } else {
     currentChallengerId = null;
@@ -186,13 +189,21 @@ function renderChallengeSection(){
   window._currentChallengerId = () => currentChallengerId;
 
   const row = document.createElement('div'); row.className = 'next-up-row';
-  const name = document.createElement('div'); name.className = 'next-up-name'; name.textContent = nextUpName;
+  const name = document.createElement('div'); name.className = 'next-up-name';
+    // Show challenger name only when countdown is active; otherwise show "No active challenge"
+  if (countdownActive && nextUpId) {
+    name.textContent = players[nextUpId]?.name || 'Unknown';
+  } else {
+    name.textContent = 'No active challenge';
+  }
   row.appendChild(name);
 
   const btn = document.createElement('button');
   btn.className = 'record-btn';
   btn.textContent = 'Record Challenge';
-  if (!nextUpId || !championId || isSweep) {
+
+  // Enable button only when countdownActive is true and there's an actionable challenger
+  if (!countdownActive || !nextUpId || !championId || isSweep) {
     btn.disabled = true;
   } else {
     btn.disabled = false;
@@ -315,9 +326,6 @@ function renderMatchHistory(){
 }
 // --- Champion glow and sweep explosion helpers ---
 
-// Keep previous explosion and confetti helpers intact for sweep/confetti
-// Create a simple glow effect function (CSS-only class toggle)
-
 // Ensure effects container exists (in case other effects reuse it)
 function ensureEffectsContainer(){
   let container = document.getElementById('effects-container');
@@ -350,7 +358,6 @@ function triggerChampionGlow(duration = 1200){
 
 function triggerChampionFire(){
   // Keep as a no-op alias in case older code calls it; prefer glow instead
-  // If you later want a different effect, implement here.
   triggerChampionGlow(1800);
 }
 
@@ -545,7 +552,6 @@ onValue(ref(db, 'playersOrder'), snap=>{
     .sort((a,b)=>a.idx-b.idx).map(e=>e.id);
   renderAll();
 });
-
 onValue(ref(db, 'championId'), snap=>{
   championId = snap.val();
   isSweep = computeSweep();
@@ -557,7 +563,7 @@ onValue(ref(db, 'matches'), snap=>{
   renderMatchHistory();
 });
 
-onValue(ref(db, 'defeats'), snap=>{
+onValue(ref(db, 'defeats'), async snap=>{
   const val = snap.val() || {};
   window._lastDefeatsSnap = val;
   const keys = typeof val === 'object' ? Object.keys(val) : [];
@@ -565,21 +571,33 @@ onValue(ref(db, 'defeats'), snap=>{
   defeated = new Set(keys);
   isSweep = computeSweep();
 
-  // If a sweep just occurred (transition false -> true), record it once
-  if (isSweep && !prevIsSweep && championId && players[championId]) {
+  // If a sweep just occurred (transition false -> true), record it once.
+  if (isSweep && !prevIsSweep) {
     try {
-      const sweepMatch = {
-        type: 'sweep',
-        winnerId: championId,
-        winnerName: players[championId].name,
-        timestamp: Date.now()
-      };
-      const mRef = push(ref(db, 'matches'));
-      set(mRef, sweepMatch);
+      // Read authoritative championId and player name from DB to avoid race conditions
+      const championSnap = await get(ref(db, 'championId'));
+      const currentChampionId = championSnap.exists() ? championSnap.val() : null;
+
+      if (!currentChampionId) {
+        console.warn('Sweep detected but no championId available from DB');
+      } else {
+        const playerSnap = await get(ref(db, `players/${currentChampionId}`));
+        const championName = playerSnap.exists() ? (playerSnap.val().name || 'Unknown') : 'Unknown';
+
+        const sweepMatch = {
+          type: 'sweep',
+          winnerId: currentChampionId,
+          winnerName: championName,
+          timestamp: Date.now()
+        };
+        const mRef = push(ref(db, 'matches'));
+        await set(mRef, sweepMatch);
+        console.log('Recorded sweep match for', currentChampionId, championName);
+      }
     } catch (e) {
       console.error('Error recording sweep match', e);
     }
-    console.log('Sweep detected for champion', championId);
+
     triggerSweepExplosion();
   }
 
