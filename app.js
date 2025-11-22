@@ -818,19 +818,50 @@ onValue(ref(db, 'defeats'), async snap=>{
         const playerSnap = await get(ref(db, `players/${currentChampionId}`));
         const championName = playerSnap.exists() ? (playerSnap.val().name || 'Unknown') : 'Unknown';
 
-        const sweepMatch = {
+        // Build a sweep entry that includes the match details that caused the sweep
+        const sweepMatchBase = {
           type: 'sweep',
           winnerId: currentChampionId,
           winnerName: championName,
           timestamp: Date.now()
         };
+
+        // Attempt to find the match that immediately preceded the sweep (the match that caused it).
+        // We will copy its recorded fields into the sweep entry so the Winner! notification contains them.
+        try {
+          const allSnap = await get(ref(db, 'matches'));
+          const allVal = allSnap.exists() ? allSnap.val() : null;
+          if (allVal) {
+            // Get matches sorted newest -> oldest and find the first non-sweep entry
+            const sorted = Object.entries(allVal)
+              .map(([k,v]) => ({ key: k, val: v }))
+              .sort((a,b) => (b.val.timestamp||0) - (a.val.timestamp||0));
+
+            const causing = sorted.find(entry => entry.val && entry.val.type !== 'sweep');
+            if (causing && causing.val) {
+              // Copy recorded fields so the sweep entry mirrors the actual match that triggered the sweep
+              sweepMatchBase.challengerId = causing.val.challengerId || null;
+              sweepMatchBase.challengerName = causing.val.challengerName || causing.val.challengerId || null;
+              sweepMatchBase.championId = causing.val.championId || currentChampionId;
+              sweepMatchBase.championName = causing.val.championName || championName;
+              sweepMatchBase.causingMatchTimestamp = causing.val.timestamp || null;
+              sweepMatchBase.causingMatchKey = causing.key || null;
+              sweepMatchBase.triggeringWinnerId = causing.val.winnerId || null;
+              sweepMatchBase.triggeringWinnerName = causing.val.winnerName || null;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not fetch causing match for sweep entry', e);
+        }
+
+        // Write the sweep entry that now includes the match details
         const mRef = push(ref(db, 'matches'));
-        await set(mRef, sweepMatch);
-        console.log('Recorded sweep match for', currentChampionId, championName);
+        await set(mRef, sweepMatchBase);
+        console.log('Recorded sweep match for', currentChampionId, championName, 'pushKey:', mRef.key);
 
         // Post sweep notification immediately for the newly-created sweep entry.
         // Use delayMs: 0 so the notifier uses the recorded sweep entry and posts the special sweep embed.
-        postToDiscord(sweepMatch, mRef.key, { delayMs: 0 }).catch(e => {
+        postToDiscord(sweepMatchBase, mRef.key, { delayMs: 0 }).catch(e => {
           console.error('Sweep Discord notify failed', e);
         });
       }
