@@ -816,14 +816,20 @@ onValue(ref(db, 'defeats'), async snap=>{
         const championName = playerSnap.exists() ? (playerSnap.val().name || 'Unknown') : 'Unknown';
 
         const sweepMatch = {
-          type: 'sweep',
-          winnerId: currentChampionId,
-          winnerName: championName,
-          timestamp: Date.now()
-        };
-        const mRef = push(ref(db, 'matches'));
-        await set(mRef, sweepMatch);
-        console.log('Recorded sweep match for', currentChampionId, championName);
+  type: 'sweep',
+  winnerId: currentChampionId,
+  winnerName: championName,
+  timestamp: Date.now()
+};
+const mRef = push(ref(db, 'matches'));
+await set(mRef, sweepMatch);
+console.log('Recorded sweep match for', currentChampionId, championName);
+
+// Post sweep notification immediately for the newly-created sweep entry.
+// Use delayMs: 0 so the notifier uses the recorded sweep entry and posts the special sweep embed.
+postToDiscord(sweepMatch, mRef.key, { delayMs: 0 }).catch(e => {
+  console.error('Sweep Discord notify failed', e);
+});
       }
     } catch (e) {
       console.error('Error recording sweep match', e);
