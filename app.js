@@ -40,13 +40,13 @@ const $ = id => document.getElementById(id);
 // ===== Discord webhook helper (DB-aware; client-side) =====
 // WARNING: webhook in client is public. Consider server-side for production.
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1ncSJPEZErvtiT-qZ7lkS8JZ_FD66BmDKPSTEi_Ms4AJMDnS4Hnve_BNtD27oln8ixja";
-// ===== postToDiscord (re-fetch after delay to ensure sweep entry is read) =====
+// ===== postToDiscord (re-fetch after optional wait, skip if already notified, clean labels) =====
 async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
   if (!DISCORD_WEBHOOK) return;
   const delay = typeof opts.delayMs === 'number' ? opts.delayMs : 10000;
 
   try {
-    // Wait so DB updates settle (if a sweep entry was just written)
+    // Wait (optional) so DB updates settle
     if (delay > 0) await new Promise(r => setTimeout(r, delay));
 
     // Fetch authoritative recorded match (prefer pushKey)
@@ -75,7 +75,13 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     // final fallback: passed match object
     if (!recordedMatch) recordedMatch = match || {};
 
-    // Debug log to confirm what's being posted
+    // If this DB record has already been notified, skip posting
+    if (recordedMatch.discordNotified) {
+      console.log('postToDiscord: skipping already-notified match', pushKey);
+      return;
+    }
+
+    // Debug log
     console.log('postToDiscord: recordedMatch', { pushKey, recordedMatch });
 
     // Build recorded fields from authoritative record
@@ -121,13 +127,14 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
       noteText = `${currentChampionName} is the winner.`;
     }
 
+    // Build embed — remove "(recorded)" from labels here
     const embed = {
       title: titleText,
       description: recDesc || undefined,
       color: recType === 'sweep' ? 0xF1C40F : 0x1ABC9C,
       fields: [
-        { name: 'Champion (recorded)', value: String(recChampion), inline: true },
-        { name: 'Challenger (recorded)', value: String(recChallenger), inline: true },
+        { name: 'Champion', value: String(recChampion), inline: true },
+        { name: 'Challenger', value: String(recChallenger), inline: true },
         { name: 'Winner', value: String(recWinner), inline: true },
         { name: 'Note', value: noteText }
       ],
@@ -266,8 +273,7 @@ function renderChampion(){
 }
 
 function renderChampionActions(){
-  const area = $('champion-actions-area'); if (!area) return;
-  area.innerHTML = '';
+  const area = $('champion-actions-area'); if (!area) return; area.innerHTML = '';
 
   if (isSweep && championId){
     const btn = document.createElement('button');
@@ -818,7 +824,7 @@ onValue(ref(db, 'defeats'), async snap=>{
         const playerSnap = await get(ref(db, `players/${currentChampionId}`));
         const championName = playerSnap.exists() ? (playerSnap.val().name || 'Unknown') : 'Unknown';
 
-        // Build a sweep entry that includes the match details that caused the sweep
+        // Build a sweep entry that includes the match details and uses the first and second players in the order
         const sweepMatchBase = {
           type: 'sweep',
           winnerId: currentChampionId,
@@ -826,26 +832,57 @@ onValue(ref(db, 'defeats'), async snap=>{
           timestamp: Date.now()
         };
 
-        // Attempt to find the match that immediately preceded the sweep (the match that caused it).
-        // We will copy its recorded fields into the sweep entry so the Winner! notification contains them.
+        // Prefer to use the first two players from the canonical order so Champion and Challenger are explicit
+        try {
+          const orderSnap = await get(ref(db, 'playersOrder'));
+          if (orderSnap.exists()) {
+            const orderedArr = Object.entries(orderSnap.val())
+              .map(([k,id])=>({idx: Number(k), id}))
+              .filter(x => x.id)
+              .sort((a,b)=>a.idx-b.idx)
+              .map(e=>e.id);
+
+            const first = orderedArr[0] || Object.keys(players || {})[0] || null;
+            const second = orderedArr[1] || Object.keys(players || {})[1] || null;
+
+            if (first) {
+              sweepMatchBase.championId = first;
+              sweepMatchBase.championName = players[first]?.name || first;
+            }
+            if (second) {
+              sweepMatchBase.challengerId = second;
+              sweepMatchBase.challengerName = players[second]?.name || second;
+            }
+          } else {
+            sweepMatchBase.championId = currentChampionId;
+            sweepMatchBase.championName = championName;
+            const allIds = Object.keys(players || {});
+            const challengerCandidate = allIds.find(id => id !== currentChampionId) || null;
+            if (challengerCandidate) {
+              sweepMatchBase.challengerId = challengerCandidate;
+              sweepMatchBase.challengerName = players[challengerCandidate]?.name || challengerCandidate;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not read playersOrder for sweep entry', e);
+        }
+
+        // Also attempt to find the causing match (most recent non-sweep match) and copy its fields as extra metadata
         try {
           const allSnap = await get(ref(db, 'matches'));
           const allVal = allSnap.exists() ? allSnap.val() : null;
           if (allVal) {
-            // Get matches sorted newest -> oldest and find the first non-sweep entry
             const sorted = Object.entries(allVal)
               .map(([k,v]) => ({ key: k, val: v }))
               .sort((a,b) => (b.val.timestamp||0) - (a.val.timestamp||0));
-
             const causing = sorted.find(entry => entry.val && entry.val.type !== 'sweep');
             if (causing && causing.val) {
-              // Copy recorded fields so the sweep entry mirrors the actual match that triggered the sweep
-              sweepMatchBase.challengerId = causing.val.challengerId || null;
-              sweepMatchBase.challengerName = causing.val.challengerName || causing.val.challengerId || null;
-              sweepMatchBase.championId = causing.val.championId || currentChampionId;
-              sweepMatchBase.championName = causing.val.championName || championName;
-              sweepMatchBase.causingMatchTimestamp = causing.val.timestamp || null;
               sweepMatchBase.causingMatchKey = causing.key || null;
+              sweepMatchBase.causingMatchTimestamp = causing.val.timestamp || null;
+              sweepMatchBase.challengerId = sweepMatchBase.challengerId || causing.val.challengerId || null;
+              sweepMatchBase.challengerName = sweepMatchBase.challengerName || causing.val.challengerName || causing.val.challengerId || null;
+              sweepMatchBase.championId = sweepMatchBase.championId || causing.val.championId || currentChampionId;
+              sweepMatchBase.championName = sweepMatchBase.championName || causing.val.championName || championName;
               sweepMatchBase.triggeringWinnerId = causing.val.winnerId || null;
               sweepMatchBase.triggeringWinnerName = causing.val.winnerName || null;
             }
@@ -854,13 +891,12 @@ onValue(ref(db, 'defeats'), async snap=>{
           console.warn('Could not fetch causing match for sweep entry', e);
         }
 
-        // Write the sweep entry that now includes the match details
+        // Write the sweep entry that includes match details
         const mRef = push(ref(db, 'matches'));
         await set(mRef, sweepMatchBase);
         console.log('Recorded sweep match for', currentChampionId, championName, 'pushKey:', mRef.key);
 
-        // Post sweep notification immediately for the newly-created sweep entry.
-        // Use delayMs: 0 so the notifier uses the recorded sweep entry and posts the special sweep embed.
+        // Immediately post the sweep notification with no delay and let postToDiscord mark the record as notified
         postToDiscord(sweepMatchBase, mRef.key, { delayMs: 0 }).catch(e => {
           console.error('Sweep Discord notify failed', e);
         });
