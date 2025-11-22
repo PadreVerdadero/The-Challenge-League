@@ -558,13 +558,18 @@ onValue(ref(db, 'defeats'), async snap=>{
   renderAll();
 });
 
+// UPDATED: timer listener re-renders UI so challenger logic updates with timer changes
 onValue(ref(db, 'timer/endTimestamp'), snap=>{
   timerEnd = snap.val() || null;
+
   if (timerEnd){
     startLocalCountdown();
   } else {
     updateTimerDisplay();
   }
+
+  // Ensure challenger section re-computes with the latest timer state
+  renderAll();
 });
 
 // --- Helper to render everything ---
