@@ -858,6 +858,7 @@ onValue(ref(db, 'defeats'), async snap=>{
   defeated = new Set(keys);
   isSweep = computeSweep();
 
+  // Guarded sweep creation + single-post behavior
   if (isSweep && !prevIsSweep) {
     try {
       const championSnap = await get(ref(db, 'championId'));
@@ -869,7 +870,45 @@ onValue(ref(db, 'defeats'), async snap=>{
         const playerSnap = await get(ref(db, `players/${currentChampionId}`));
         const championName = playerSnap.exists() ? (playerSnap.val().name || 'Unknown') : 'Unknown';
 
-        // Build a sweep entry that includes the match details and uses the first and second players in the order
+        // Attempt to find the causing (most recent non-sweep) match
+        let causing = null;
+        try {
+          const allSnap = await get(ref(db, 'matches'));
+          const allVal = allSnap.exists() ? allSnap.val() : null;
+          if (allVal) {
+            const sorted = Object.entries(allVal)
+              .map(([k,v]) => ({ key: k, val: v }))
+              .sort((a,b) => (b.val.timestamp||0) - (a.val.timestamp||0));
+            causing = sorted.find(entry => entry.val && entry.val.type !== 'sweep') || null;
+          }
+        } catch (e) {
+          console.warn('Could not fetch matches to find causing match', e);
+        }
+
+        // If a causing match exists, check whether we've already created a sweep for it
+        if (causing && causing.key) {
+          try {
+            const allSnap2 = await get(ref(db, 'matches'));
+            const allVal2 = allSnap2.exists() ? allSnap2.val() : null;
+            if (allVal2) {
+              const existingSweepForCausing = Object.entries(allVal2).find(([k,v]) =>
+                v && v.type === 'sweep' && (v.causingMatchKey === causing.key || v.causingMatchKey === causing.key)
+              );
+              if (existingSweepForCausing) {
+                console.log('Sweep already exists for causing match', causing.key, '— skipping creation');
+                // Ensure the causing match is marked as notified so the original webhook won't post
+                try { await set(ref(db, `matches/${causing.key}/discordNotified`), true); } catch(e){}
+                triggerSweepExplosion();
+                renderAll();
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('Could not check existing sweeps', e);
+          }
+        }
+
+        // Build the sweep entry that includes champion/challenger fields using canonical order (first & second)
         const sweepMatchBase = {
           type: 'sweep',
           winnerId: currentChampionId,
@@ -877,7 +916,6 @@ onValue(ref(db, 'defeats'), async snap=>{
           timestamp: Date.now()
         };
 
-        // Prefer to use the first two players from the canonical order so Champion and Challenger are explicit
         try {
           const orderSnap = await get(ref(db, 'playersOrder'));
           if (orderSnap.exists()) {
@@ -912,34 +950,29 @@ onValue(ref(db, 'defeats'), async snap=>{
           console.warn('Could not read playersOrder for sweep entry', e);
         }
 
-        // Also attempt to find the causing match (most recent non-sweep match) and copy its fields as extra metadata
-        try {
-          const allSnap = await get(ref(db, 'matches'));
-          const allVal = allSnap.exists() ? allSnap.val() : null;
-          if (allVal) {
-            const sorted = Object.entries(allVal)
-              .map(([k,v]) => ({ key: k, val: v }))
-              .sort((a,b) => (b.val.timestamp||0) - (a.val.timestamp||0));
-            const causing = sorted.find(entry => entry.val && entry.val.type !== 'sweep');
-            if (causing && causing.val) {
-              sweepMatchBase.causingMatchKey = causing.key || null;
-              sweepMatchBase.causingMatchTimestamp = causing.val.timestamp || null;
-              sweepMatchBase.challengerId = sweepMatchBase.challengerId || causing.val.challengerId || null;
-              sweepMatchBase.challengerName = sweepMatchBase.challengerName || causing.val.challengerName || causing.val.challengerId || null;
-              sweepMatchBase.championId = sweepMatchBase.championId || causing.val.championId || currentChampionId;
-              sweepMatchBase.championName = sweepMatchBase.championName || causing.val.championName || championName;
-              sweepMatchBase.triggeringWinnerId = causing.val.winnerId || null;
-              sweepMatchBase.triggeringWinnerName = causing.val.winnerName || null;
-            }
-          }
-        } catch (e) {
-          console.warn('Could not fetch causing match for sweep entry', e);
+        // Attach causing match metadata if available (helps later checks)
+        if (causing && causing.key && causing.val) {
+          sweepMatchBase.causingMatchKey = causing.key;
+          sweepMatchBase.causingMatchTimestamp = causing.val.timestamp || null;
+
+          // Copy recorded challenger/champion if not already set
+          sweepMatchBase.challengerId = sweepMatchBase.challengerId || causing.val.challengerId || null;
+          sweepMatchBase.challengerName = sweepMatchBase.challengerName || causing.val.challengerName || causing.val.challengerId || null;
+          sweepMatchBase.championId = sweepMatchBase.championId || causing.val.championId || currentChampionId;
+          sweepMatchBase.championName = sweepMatchBase.championName || causing.val.championName || championName;
+          sweepMatchBase.triggeringWinnerId = causing.val.winnerId || null;
+          sweepMatchBase.triggeringWinnerName = causing.val.winnerName || null;
         }
 
-        // Write the sweep entry that includes match details
+        // Write sweep entry
         const mRef = push(ref(db, 'matches'));
         await set(mRef, sweepMatchBase);
         console.log('Recorded sweep match for', currentChampionId, championName, 'pushKey:', mRef.key);
+
+        // Mark the causing match as notified so submitChallenge (or any other notifier) will not post it
+        if (causing && causing.key) {
+          try { await set(ref(db, `matches/${causing.key}/discordNotified`), true); } catch(e){ console.warn('Could not mark causing match as discordNotified', e); }
+        }
 
         // Immediately post the sweep notification with no delay and let postToDiscord mark the record as notified
         postToDiscord(sweepMatchBase, mRef.key, { delayMs: 0 }).catch(e => {
