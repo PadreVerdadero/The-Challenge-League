@@ -37,14 +37,41 @@ window._currentChallengerId = () => currentChallengerId;
 
 const $ = id => document.getElementById(id);
 
-// ===== Client-side Discord webhook helper (WARNING: public in client) =====
+// ===== Discord webhook helper (DB-aware; client-side) =====
+// WARNING: webhook in client is public. Consider server-side for production.
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1ncSJPEZErvtiT-qZ7lkS8JZ_FD66BmDKPSTEi_Ms4AJMDnS4Hnve_BNtD27oln8ixja";
 
-async function postToDiscord(match) {
+async function postToDiscord(match, pushKey){
   if (!DISCORD_WEBHOOK) return;
   try {
+    // read authoritative current state from DB so we compute the next challenger after the write
+    const [playersSnap, champSnap, orderSnap] = await Promise.all([
+      get(ref(db, 'players')),
+      get(ref(db, 'championId')),
+      get(ref(db, 'playersOrder'))
+    ]);
+    const playersObj = playersSnap.exists() ? playersSnap.val() : {};
+    const championNow = champSnap.exists() ? champSnap.val() : null;
+
+    // reconstruct ordered array from playersOrder if present, otherwise fallback to keys sort
+    let orderedArr = [];
+    if (orderSnap.exists()){
+      const orderVal = orderSnap.val();
+      orderedArr = Object.entries(orderVal)
+        .map(([k,id])=>({idx: Number(k), id}))
+        .filter(x => x.id)
+        .sort((a,b)=>a.idx-b.idx)
+        .map(e=>e.id);
+    } else {
+      orderedArr = Object.keys(playersObj || {}).sort();
+    }
+
+    // find the next challenger (first id that is not champion)
+    const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
+    const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : 'No challenger';
+
     const challenger = match.challengerName || match.challengerId || 'Challenger';
-    const champion = match.championName || match.championId || 'Champion';
+    const champion = match.championName || match.championId || championNow || 'Champion';
     const winner = match.winnerName || match.winnerId || 'Winner';
     const desc = match.description || '';
 
@@ -63,7 +90,8 @@ async function postToDiscord(match) {
     if (match.type === 'sweep') {
       embed.fields.push({ name: 'Note', value: `${champion} swept the queue — please plan a new order for the League.` });
     } else {
-      embed.fields.push({ name: 'Note', value: `${challenger} has one week to challenge the title.` });
+      // NOTE: Use the computed next challenger name here
+      embed.fields.push({ name: 'Note', value: `${nextChallengerName} now has one week to challenge the title.` });
     }
 
     const payload = {
@@ -79,6 +107,11 @@ async function postToDiscord(match) {
 
     if (!res.ok) {
       console.error('Discord webhook error', res.status, await res.text());
+    } else {
+      // optional: mark the match as notified to avoid duplicate notifications
+      if (pushKey) {
+        try { await set(ref(db, `matches/${pushKey}/discordNotified`), true); } catch(e){}
+      }
     }
   } catch (err) {
     console.error('postToDiscord error', err);
@@ -107,7 +140,6 @@ function ensureSection(id, title){
   }
   return el;
 }
-
 // --- Timer helpers ---
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 function formatDuration(ms){
@@ -187,6 +219,7 @@ function computeSweep(){
   return challengers.every(id => defeated.has(id));
 }
 if (typeof computeSweep === 'function') window.computeSweep = computeSweep;
+
 // --- Champion rendering ---
 function renderChampion(){
   const el = ensureSection('champion-card', 'Champion');
@@ -200,7 +233,6 @@ function renderChampion(){
   el.appendChild(wrap);
   renderChampionActions();
 }
-
 function renderChampionActions(){
   const area = $('champion-actions-area'); if (!area) return;
   area.innerHTML = '';
@@ -289,7 +321,6 @@ function renderChallengeSection(){
   el.appendChild(timerWrap);
   updateTimerDisplay();
 }
-
 // --- Roster rendering ---
 function renderRoster(){
   const el = ensureSection('roster', 'Roster');
@@ -407,7 +438,6 @@ function ensureEffectsContainer(){
   }
   return container;
 }
-
 function triggerChampionGlow(duration = 1200){
   const champEl = document.querySelector('.champ-name');
   if (!champEl) return;
@@ -554,8 +584,7 @@ function openChallengeModal(challengerId){
   panel.appendChild(row);
   modal.appendChild(panel);
   document.body.appendChild(modal);
-
-  function closeModal(){
+    function closeModal(){
     const m=$('challenge-modal'); if(m) m.remove();
     currentChallengerId = null;
     window._currentChallengerId = () => currentChallengerId;
@@ -580,9 +609,10 @@ async function submitChallenge(challengerId, description, winnerId){
     const mRef = push(ref(db, 'matches'));
     await set(mRef, match);
 
-    // Notify Discord (client-side). Use .catch so failures don't block UI flow.
-    postToDiscord(match).catch(e => console.error('Discord notify failed', e));
-        if (winnerId === challengerId){
+    // Notify Discord (client-side). Pass pushKey so notifier can mark the match as notified.
+    postToDiscord(match, mRef.key).catch(e => console.error('Discord notify failed', e));
+
+    if (winnerId === challengerId){
       const previousChampion = championId;
       try { /* no counter to reset now */ } catch(e){}
       await set(ref(db, 'championId'), challengerId);
@@ -740,6 +770,7 @@ onValue(ref(db, 'timer/endTimestamp'), snap=>{
     document.addEventListener('DOMContentLoaded', renderAll, { once: true });
   }
 });
+
 // --- Helper to render everything ---
 function renderAll(){
   ensureSection('champion-card', 'Champion');
