@@ -40,20 +40,27 @@ const $ = id => document.getElementById(id);
 // ===== Discord webhook helper (DB-aware; client-side) =====
 // WARNING: webhook in client is public. Consider server-side for production.
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1ncSJPEZErvtiT-qZ7lkS8JZ_FD66BmDKPSTEi_Ms4AJMDnS4Hnve_BNtD27oln8ixja";
-// ===== postToDiscord (sweep-note and title change) =====
+// ===== postToDiscord (re-fetch after delay to ensure sweep entry is read) =====
 async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
   if (!DISCORD_WEBHOOK) return;
   const delay = typeof opts.delayMs === 'number' ? opts.delayMs : 10000;
 
   try {
-    // fetch the recorded match (prefer key)
+    // Wait so DB updates settle (if a sweep entry was just written)
+    if (delay > 0) await new Promise(r => setTimeout(r, delay));
+
+    // Fetch authoritative recorded match (prefer pushKey)
     let recordedMatch = null;
     if (pushKey) {
-      const mSnap = await get(ref(db, `matches/${pushKey}`));
-      if (mSnap.exists()) recordedMatch = mSnap.val();
+      try {
+        const mSnap = await get(ref(db, `matches/${pushKey}`));
+        if (mSnap.exists()) recordedMatch = mSnap.val();
+      } catch (e) {
+        console.warn('postToDiscord: error fetching by pushKey', pushKey, e);
+      }
     }
 
-    // fallback to most recent match
+    // fallback: most recent match
     if (!recordedMatch) {
       const allSnap = await get(ref(db, 'matches'));
       const allVal = allSnap.exists() ? allSnap.val() : null;
@@ -65,20 +72,20 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
       }
     }
 
-    // final fallback to the passed object
+    // final fallback: passed match object
     if (!recordedMatch) recordedMatch = match || {};
 
-    // build recorded fields
+    // Debug log to confirm what's being posted
+    console.log('postToDiscord: recordedMatch', { pushKey, recordedMatch });
+
+    // Build recorded fields from authoritative record
     const recChallenger = recordedMatch.challengerName || recordedMatch.challengerId || 'Challenger';
     const recChampion = recordedMatch.championName || recordedMatch.championId || 'Champion';
     const recWinner = recordedMatch.winnerName || recordedMatch.winnerId || 'Winner';
     const recDesc = recordedMatch.description || '';
     const recType = recordedMatch.type || 'match';
 
-    // wait so DB settles (note uses post-delay site state)
-    if (delay > 0) await new Promise(r => setTimeout(r, delay));
-
-    // read authoritative site state to compute note text
+    // Read site state to compute Note (next challenger / current champion)
     const [playersSnap, champSnap, orderSnap] = await Promise.all([
       get(ref(db, 'players')),
       get(ref(db, 'championId')),
@@ -103,13 +110,10 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : null;
     const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : recChampion;
 
-    // Determine note and title
+    // Compose title and note; for sweep use requested wording and title
+    let titleText = recType === 'sweep' ? 'Winner!' : '🏁 Match Recorded';
     let noteText;
-    let titleText = recType === 'sweep' ? '🏆 Sweep Recorded' : '🏁 Match Recorded';
-
     if (recType === 'sweep') {
-      // For sweep: change title and note per request
-      titleText = 'Winner!';
       noteText = `${currentChampionName} now decides how to determine the order.`;
     } else if (nextChallengerName) {
       noteText = `${nextChallengerName} now has one week to challenge ${currentChampionName}.`;
@@ -117,7 +121,6 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
       noteText = `${currentChampionName} is the winner.`;
     }
 
-    // final embed (recorded fields copied verbatim)
     const embed = {
       title: titleText,
       description: recDesc || undefined,
@@ -816,20 +819,20 @@ onValue(ref(db, 'defeats'), async snap=>{
         const championName = playerSnap.exists() ? (playerSnap.val().name || 'Unknown') : 'Unknown';
 
         const sweepMatch = {
-  type: 'sweep',
-  winnerId: currentChampionId,
-  winnerName: championName,
-  timestamp: Date.now()
-};
-const mRef = push(ref(db, 'matches'));
-await set(mRef, sweepMatch);
-console.log('Recorded sweep match for', currentChampionId, championName);
+          type: 'sweep',
+          winnerId: currentChampionId,
+          winnerName: championName,
+          timestamp: Date.now()
+        };
+        const mRef = push(ref(db, 'matches'));
+        await set(mRef, sweepMatch);
+        console.log('Recorded sweep match for', currentChampionId, championName);
 
-// Post sweep notification immediately for the newly-created sweep entry.
-// Use delayMs: 0 so the notifier uses the recorded sweep entry and posts the special sweep embed.
-postToDiscord(sweepMatch, mRef.key, { delayMs: 0 }).catch(e => {
-  console.error('Sweep Discord notify failed', e);
-});
+        // Post sweep notification immediately for the newly-created sweep entry.
+        // Use delayMs: 0 so the notifier uses the recorded sweep entry and posts the special sweep embed.
+        postToDiscord(sweepMatch, mRef.key, { delayMs: 0 }).catch(e => {
+          console.error('Sweep Discord notify failed', e);
+        });
       }
     } catch (e) {
       console.error('Error recording sweep match', e);
