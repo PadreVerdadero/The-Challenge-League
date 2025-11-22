@@ -37,6 +37,54 @@ window._currentChallengerId = () => currentChallengerId;
 
 const $ = id => document.getElementById(id);
 
+// ===== Client-side Discord webhook helper (WARNING: public in client) =====
+const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1ncSJPEZErvtiT-qZ7lkS8JZ_FD66BmDKPSTEi_Ms4AJMDnS4Hnve_BNtD27oln8ixja";
+
+async function postToDiscord(match) {
+  if (!DISCORD_WEBHOOK) return;
+  try {
+    const challenger = match.challengerName || match.challengerId || 'Challenger';
+    const champion = match.championName || match.championId || 'Champion';
+    const winner = match.winnerName || match.winnerId || 'Winner';
+    const desc = match.description || '';
+
+    const embed = {
+      title: match.type === 'sweep' ? '🏆 Sweep Recorded' : '🏁 Match Recorded',
+      description: desc || undefined,
+      color: match.type === 'sweep' ? 0xF1C40F : 0x1ABC9C,
+      fields: [
+        { name: 'Champion', value: String(champion), inline: true },
+        { name: 'Challenger', value: String(challenger), inline: true },
+        { name: 'Winner', value: String(winner), inline: true }
+      ],
+      timestamp: new Date(match.timestamp || Date.now()).toISOString()
+    };
+
+    if (match.type === 'sweep') {
+      embed.fields.push({ name: 'Note', value: `${champion} swept the queue — please plan a new order for the League.` });
+    } else {
+      embed.fields.push({ name: 'Note', value: `${challenger} has one week to challenge the title.` });
+    }
+
+    const payload = {
+      username: 'Challenge League Bot',
+      embeds: [embed]
+    };
+
+    const res = await fetch(DISCORD_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      console.error('Discord webhook error', res.status, await res.text());
+    }
+  } catch (err) {
+    console.error('postToDiscord error', err);
+  }
+}
+
 // Safety stubs to avoid early runtime crashes if listeners fire before full parse
 if (typeof renderRoster !== 'function') {
   window.renderRoster = function(){ /* noop until real impl loads */ };
@@ -532,7 +580,9 @@ async function submitChallenge(challengerId, description, winnerId){
     const mRef = push(ref(db, 'matches'));
     await set(mRef, match);
 
-    if (winnerId === challengerId){
+    // Notify Discord (client-side). Use .catch so failures don't block UI flow.
+    postToDiscord(match).catch(e => console.error('Discord notify failed', e));
+        if (winnerId === challengerId){
       const previousChampion = championId;
       try { /* no counter to reset now */ } catch(e){}
       await set(ref(db, 'championId'), challengerId);
@@ -584,7 +634,6 @@ async function submitChallenge(challengerId, description, winnerId){
     console.error('submitChallenge error', e);
   }
 }
-
 // --- Add Player ---
 async function addPlayer(){
   const input = $('new-player-name'); if (!input) return;
@@ -602,6 +651,7 @@ async function addPlayer(){
   }
 }
 $('add-player-button')?.addEventListener('click', addPlayer);
+
 // --- Firebase listeners ---
 onValue(ref(db, 'players'), snap=>{
   players = snap.val() || {};
@@ -630,7 +680,6 @@ onValue(ref(db, 'championId'), snap=>{
   isSweep = computeSweep();
   renderAll();
 });
-
 onValue(ref(db, 'matches'), snap=>{
   matches = Object.values(snap.val() || {});
   renderMatchHistory();
@@ -691,7 +740,6 @@ onValue(ref(db, 'timer/endTimestamp'), snap=>{
     document.addEventListener('DOMContentLoaded', renderAll, { once: true });
   }
 });
-
 // --- Helper to render everything ---
 function renderAll(){
   ensureSection('champion-card', 'Champion');
