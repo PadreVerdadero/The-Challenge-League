@@ -40,14 +40,47 @@ const $ = id => document.getElementById(id);
 // ===== Discord webhook helper (DB-aware; client-side) =====
 // WARNING: webhook in client is public. Consider server-side for production.
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1ncSJPEZErvtiT-qZ7lkS8JZ_FD66BmDKPSTEi_Ms4AJMDnS4Hnve_BNtD27oln8ixja";
-
+// ===== postToDiscord that copies the recorded match entry then computes delayed Note =====
 async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
   if (!DISCORD_WEBHOOK) return;
   const delay = typeof opts.delayMs === 'number' ? opts.delayMs : 10000;
-  if (delay > 0) await new Promise(r => setTimeout(r, delay));
 
   try {
-    // read authoritative current state from DB after the delay
+    // 1) Fetch the recorded match from DB so we mirror match history exactly
+    let recordedMatch = null;
+
+    if (pushKey) {
+      const mSnap = await get(ref(db, `matches/${pushKey}`));
+      if (mSnap.exists()) recordedMatch = mSnap.val();
+    }
+
+    // fallback: if no pushKey or couldn't load it, use the most recent match entry
+    if (!recordedMatch) {
+      const allSnap = await get(ref(db, 'matches'));
+      const allVal = allSnap.exists() ? allSnap.val() : null;
+      if (allVal) {
+        // entries are stored as push keys -> values
+        const recent = Object.entries(allVal)
+          .map(([k,v]) => ({ key: k, val: v }))
+          .sort((a,b) => (b.val.timestamp||0) - (a.val.timestamp||0))[0];
+        if (recent) recordedMatch = recent.val;
+      }
+    }
+
+    // If still no match found, fall back to the match object passed in
+    if (!recordedMatch) recordedMatch = match || {};
+
+    // Build the base embed using the recorded match fields (exact copy of history)
+    const recChallenger = recordedMatch.challengerName || recordedMatch.challengerId || 'Challenger';
+    const recChampion = recordedMatch.championName || recordedMatch.championId || 'Champion';
+    const recWinner = recordedMatch.winnerName || recordedMatch.winnerId || 'Winner';
+    const recDesc = recordedMatch.description || '';
+    const recType = recordedMatch.type || (recordedMatch.winnerId && recordedMatch.winnerId === recordedMatch.challengerId ? 'title-change' : 'match');
+
+    // Wait the requested delay so DB updates settle (and so Note is computed from post-delay site state)
+    if (delay > 0) await new Promise(r => setTimeout(r, delay));
+
+    // 2) Read authoritative site state to compute the Note (next challenger / current champion)
     const [playersSnap, champSnap, orderSnap] = await Promise.all([
       get(ref(db, 'players')),
       get(ref(db, 'championId')),
@@ -56,7 +89,6 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     const playersObj = playersSnap.exists() ? playersSnap.val() : {};
     const championNow = champSnap.exists() ? champSnap.val() : null;
 
-    // reconstruct ordered array from playersOrder if present, otherwise fallback to keys sort
     let orderedArr = [];
     if (orderSnap.exists()){
       const orderVal = orderSnap.val();
@@ -69,25 +101,12 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
       orderedArr = Object.keys(playersObj || {}).sort();
     }
 
-    // compute current "next challenger" from authoritative state
     const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
     const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : null;
+    const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : recChampion;
 
-    // recorded values (these reflect who actually participated in the match)
-    const challengerRecorded = match.challengerName || match.challengerId || 'Challenger';
-    const previousChampionRecorded = match.championName || match.championId || 'Champion';
-    const winnerRecorded = match.winnerName || match.winnerId || 'Winner';
-    const desc = match.description || '';
-
-    // post-delay current champion name (site current champion after delay)
-    const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : previousChampionRecorded;
-
-    // Determine Note per spec:
-    // - If nextChallengerName exists -> "<nextChallengerName> now has one week to challenge <currentChampionName>."
-    // - If nextChallengerName is null -> "<currentChampionName> is the winner."
-    // - If sweep -> special text
     let noteText;
-    if (match.type === 'sweep') {
+    if (recType === 'sweep' || recordedMatch.type === 'sweep') {
       noteText = `${currentChampionName} swept the queue — please plan a new order for the League.`;
     } else if (nextChallengerName) {
       noteText = `${nextChallengerName} now has one week to challenge ${currentChampionName}.`;
@@ -95,23 +114,21 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
       noteText = `${currentChampionName} is the winner.`;
     }
 
+    // 3) Final embed: use recorded fields for the match info, add the delayed Note
     const embed = {
-      title: match.type === 'sweep' ? '🏆 Sweep Recorded' : '🏁 Match Recorded',
-      description: desc || undefined,
-      color: match.type === 'sweep' ? 0xF1C40F : 0x1ABC9C,
+      title: (recordedMatch.type === 'sweep') ? '🏆 Sweep Recorded' : '🏁 Match Recorded',
+      description: recDesc || undefined,
+      color: (recordedMatch.type === 'sweep') ? 0xF1C40F : 0x1ABC9C,
       fields: [
-        { name: 'Previous Champion (recorded)', value: String(previousChampionRecorded), inline: true },
-        { name: 'Challenger (recorded)', value: String(challengerRecorded), inline: true },
-        { name: 'Winner', value: String(winnerRecorded), inline: true },
+        { name: 'Champion (recorded)', value: String(recChampion), inline: true },
+        { name: 'Challenger (recorded)', value: String(recChallenger), inline: true },
+        { name: 'Winner', value: String(recWinner), inline: true },
         { name: 'Note', value: noteText }
       ],
-      timestamp: new Date(match.timestamp || Date.now()).toISOString()
+      timestamp: new Date(recordedMatch.timestamp || Date.now()).toISOString()
     };
 
-    const payload = {
-      username: 'Challenge League Bot',
-      embeds: [embed]
-    };
+    const payload = { username: 'Challenge League Bot', embeds: [embed] };
 
     const res = await fetch(DISCORD_WEBHOOK, {
       method: 'POST',
@@ -130,7 +147,6 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     console.error('postToDiscord error', err);
   }
 }
-
 // Safety stubs to avoid early runtime crashes if listeners fire before full parse
 if (typeof renderRoster !== 'function') {
   window.renderRoster = function(){ /* noop until real impl loads */ };
@@ -153,6 +169,7 @@ function ensureSection(id, title){
   }
   return el;
 }
+
 // --- Timer helpers ---
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 function formatDuration(ms){
@@ -180,7 +197,6 @@ function startLocalCountdown(){
   updateTimerDisplay();
   timerInterval = setInterval(updateTimerDisplay, 1000);
 }
-
 // --- Confetti ---
 function triggerConfetti(){
   const canvas = $('confetti-canvas'); if (!canvas) return;
@@ -232,7 +248,6 @@ function computeSweep(){
   return challengers.every(id => defeated.has(id));
 }
 if (typeof computeSweep === 'function') window.computeSweep = computeSweep;
-
 // --- Champion rendering ---
 function renderChampion(){
   const el = ensureSection('champion-card', 'Champion');
@@ -246,6 +261,7 @@ function renderChampion(){
   el.appendChild(wrap);
   renderChampionActions();
 }
+
 function renderChampionActions(){
   const area = $('champion-actions-area'); if (!area) return;
   area.innerHTML = '';
@@ -305,7 +321,6 @@ function renderChampionActions(){
     area.appendChild(btn);
   }
 }
-
 // --- Challenge section ---
 function renderChallengeSection(){
   const el = ensureSection('challenge-section', 'Challenger');
@@ -395,8 +410,7 @@ function renderRoster(){
     }
 
     row.append(handle, nameBtn);
-
-    const movesDisabled = Boolean(championId);
+        const movesDisabled = Boolean(championId);
 
     if (visibleIds.length > 1){
       const up = document.createElement('button');
@@ -790,7 +804,6 @@ onValue(ref(db, 'defeats'), async snap=>{
 
   renderAll();
 });
-
 // Timer listener: update countdown and re-render safely when DOM is ready
 onValue(ref(db, 'timer/endTimestamp'), snap=>{
   timerEnd = snap.val() || null;
