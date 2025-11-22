@@ -328,7 +328,6 @@ function renderMatchHistory(){
 }
 // --- Champion fire and sweep explosion helpers ---
 
-// Ensure effects container exists (call once)
 function ensureEffectsContainer(){
   let container = document.getElementById('effects-container');
   if (!container){
@@ -349,23 +348,33 @@ function ensureEffectsContainer(){
 function triggerChampionFire(){
   const champEl = document.querySelector('.champ-name');
   if (!champEl) return;
+
+  // bounding rect relative to viewport
   const rect = champEl.getBoundingClientRect();
+  // account for page scroll to convert to document coordinates
+  const scrollX = window.scrollX || window.pageXOffset || 0;
+  const scrollY = window.scrollY || window.pageYOffset || 0;
+
   const container = ensureEffectsContainer();
 
-  // Create a wrapper pinned to champion
+  // Create wrapper in fixed overlay but positioned using document coords -> convert to fixed coords
   const wrapper = document.createElement('div');
   wrapper.className = 'champ-fire-effect';
   wrapper.style.position = 'absolute';
-  // center horizontally on champion and place slightly below it
-  wrapper.style.left = `${rect.left + rect.width/2}px`;
-  wrapper.style.top = `${rect.top + rect.height - 6}px`;
+  // center horizontally on champion
+  const centerX = rect.left + (rect.width / 2) + scrollX;
+  // place vertically slightly below champion (tweak offsetPx to move up/down)
+  const offsetPx = 6; // positive moves fire lower, negative moves it up
+  const topY = rect.bottom + scrollY - offsetPx;
+
+  wrapper.style.left = `${centerX}px`;
+  wrapper.style.top = `${topY}px`;
   wrapper.style.transform = 'translate(-50%, 0)';
   wrapper.style.width = `${Math.max(120, rect.width * 1.2)}px`;
   wrapper.style.height = '40px';
   wrapper.style.pointerEvents = 'none';
   wrapper.style.zIndex = 9998;
 
-  // Build flames as in your CSS expectations
   const fire = document.createElement('div');
   fire.className = 'champ-fire';
   fire.style.position = 'relative';
@@ -375,21 +384,22 @@ function triggerChampionFire(){
   fire.style.height = '100%';
   fire.style.overflow = 'visible';
 
+  // Create flames distributed across the wrapper width
   for (let i = 0; i < 5; i++){
     const f = document.createElement('div');
     f.className = 'flame';
-    // disperse flames across width
-    f.style.left = `${(i * 18) + 6}px`;
+    // position using percentage across the wrapper to keep alignment stable
+    const leftPercent = 8 + i * 22;
+    f.style.left = `${leftPercent}%`;
     fire.appendChild(f);
   }
 
   wrapper.appendChild(fire);
   container.appendChild(wrapper);
 
-  // auto remove after animation (match your CSS durations)
+  // Remove after animation duration (match your CSS ~2400ms)
   setTimeout(() => { wrapper.remove(); }, 2600);
 }
-
 // Explosion animation for sweep: flash + particle burst
 function triggerSweepExplosion() {
   const overlay = document.createElement('div');
