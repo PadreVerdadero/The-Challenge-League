@@ -252,6 +252,7 @@ function startLocalCountdown(){
   updateTimerDisplay();
   timerInterval = setInterval(updateTimerDisplay, 1000);
 }
+
 // --- Confetti ---
 function triggerConfetti(){
   const canvas = $('confetti-canvas'); if (!canvas) return;
@@ -338,7 +339,10 @@ function renderChampionActions(){
       renderAll();
     });
     area.appendChild(btn);
-  } else if (!championId){
+    return;
+  }
+
+  if (!championId){
     const btn = document.createElement('button');
     btn.textContent = 'Lock in Order';
     btn.addEventListener('click', async ()=>{
@@ -610,6 +614,7 @@ function triggerSweepExplosion() {
   document.body.appendChild(overlay);
   setTimeout(()=> overlay.remove(), 900);
 }
+
 // --- Trophy badge helpers (simplified, no counter) ---
 function ensureLiveAnnounce(){
   let live = document.getElementById('site-live-announce');
@@ -629,7 +634,6 @@ function ensureLiveAnnounce(){
   }
   return live;
 }
-
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 }
@@ -716,14 +720,13 @@ function openChallengeModal(challengerId){
   panel.appendChild(row);
   modal.appendChild(panel);
   document.body.appendChild(modal);
-    function closeModal(){
+  function closeModal(){
     const m=$('challenge-modal'); if(m) m.remove();
     currentChallengerId = null;
     window._currentChallengerId = () => currentChallengerId;
     renderAll();
   }
 }
-
 // --- Challenge submission ---
 async function submitChallenge(challengerId, description, winnerId){
   const match = {
