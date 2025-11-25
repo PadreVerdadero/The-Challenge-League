@@ -39,7 +39,7 @@ const $ = id => document.getElementById(id);
 
 // ===== Discord webhook helper (DB-aware; client-side) =====
 // WARNING: webhook in client is public. Consider server-side for production.
-const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1441618843641315498/1ncSJPEZErvtiT-qZ7lkS8JZ_FD66BmDKPSTEi_Ms4AJMDnS4Hnve_BNtD27oln8ixja";
+const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1442702542294356181/1bBnhz9uhaGIFDSvnsvUw6wNFrVLNXyoaciBrc36olR7RCJMd0VZxiYTtGdJkTLUfMB5";
 // ===== postToDiscord (re-fetch after optional wait, skip if already notified, clean labels) =====
 async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
   if (!DISCORD_WEBHOOK) return;
