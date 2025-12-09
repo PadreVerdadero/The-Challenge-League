@@ -727,6 +727,7 @@ async function submitChallenge(challengerId, description, winnerId){
     } else {
       // champion defended
       await set(ref(db, `defeats/${challengerId}`), true);
+      await set(ref(db, 'timer/endTimestamp'), Date.now() + WEEK_MS);
 
       const idx = playersOrderArr.indexOf(challengerId);
       if (idx !== -1) {
