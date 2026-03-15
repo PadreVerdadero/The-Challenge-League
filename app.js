@@ -409,39 +409,45 @@ if (isSweep && championId){
 // --- Challenge section (always show next challenger; allow recording even when overdue) ---
 function renderChallengeSection(){
   const el = ensureSection('challenge-section', 'Challenger');
+  // start fresh
   el.innerHTML = `<h2>Challenger</h2>`;
 
-  // canonical order: prefer playersOrderArr (kept in sync by listeners), fallback to players keys
-  const ordered = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
-  // nextUp is the first id in order that is not the champion and exists in players
-  const nextUpId = ordered.find(id => id && id !== championId && players[id]) || null;
+  // canonical order: prefer playersOrderArr, fallback to players keys
+  const ordered = (playersOrderArr && playersOrderArr.length) ? playersOrderArr.slice() : Object.keys(players || {}).sort();
 
-  // Always expose the next challenger in the UI (even if timer expired)
+  // nextUp is the first id in order that is not the champion and exists in players
+  const nextUpId = ordered.find(id => id && id !== championId && players && players[id]) || null;
+
+  // expose the next challenger id globally for other code
   currentChallengerId = nextUpId;
   window._currentChallengerId = () => currentChallengerId;
 
-  const row = document.createElement('div'); row.className = 'next-up-row';
-  const name = document.createElement('div'); name.className = 'next-up-name';
+  // build row
+  const row = document.createElement('div');
+  row.className = 'next-up-row';
 
+  const name = document.createElement('div');
+  name.className = 'next-up-name';
+
+  // challenger name (always set once)
   if (nextUpId && players[nextUpId]) {
-    name.textContent = players[nextUpId].name;
+    name.textContent = players[nextUpId].name || 'Unknown';
   } else {
     name.textContent = 'No active challenger';
   }
   row.appendChild(name);
-  
-if (nextUpId && players[nextUpId]) {
-  name.textContent = players[nextUpId].name;
 
-  const cWins = Number(players[nextUpId].wins || 0);
-  const cLosses = Number(players[nextUpId].losses || 0);
-  const wl = document.createElement('span');
-  wl.className = 'player-wl';
-  wl.innerHTML = `<span class="wins">${cWins}</span><span class="dash">-</span><span class="losses">${cLosses}</span>`;
-  row.appendChild(wl);
-} else {
-  name.textContent = 'No active challenger';
-}
+  // W-L badge (only when we have a challenger)
+  if (nextUpId && players[nextUpId]) {
+    const cWins = Number(players[nextUpId].wins || 0);
+    const cLosses = Number(players[nextUpId].losses || 0);
+    const wl = document.createElement('span');
+    wl.className = 'player-wl';
+    wl.innerHTML = `<span class="wins">${cWins}</span><span class="dash">-</span><span class="losses">${cLosses}</span>`;
+    row.appendChild(wl);
+  }
+
+  // record button
   const btn = document.createElement('button');
   btn.className = 'record-btn';
   btn.textContent = 'Record Challenge';
@@ -462,6 +468,7 @@ if (nextUpId && players[nextUpId]) {
 
   el.appendChild(row);
 
+  // timer display
   const timerWrap = document.createElement('div');
   timerWrap.id = 'timer-display';
   el.appendChild(timerWrap);
