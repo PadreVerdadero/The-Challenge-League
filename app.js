@@ -316,10 +316,6 @@ function renderChampion(){
   } else {
     nameEl.textContent = 'No champion yet';
     wlEl.innerHTML = `<span class="wins">0</span><span class="dash">-</span><span class="losses">0</span>`;
-  }
-
-  // Ensure champion section stays at top
-  ensureChampionAtTop();
 }
 
 function renderChampionActions(){
