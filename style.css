@@ -137,7 +137,7 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
   color: var(--text);
   cursor:pointer;
   font-weight:600;
-  font-size:15px;
+  font-size:48px;
 }
 .roster-name.active{
   color: var(--accent);
