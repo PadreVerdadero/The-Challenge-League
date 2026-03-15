@@ -1077,4 +1077,3 @@ function renderAll(){
 document.addEventListener('DOMContentLoaded', ()=>{
   renderAll();
 });
-}
