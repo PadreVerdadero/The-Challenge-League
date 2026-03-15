@@ -191,16 +191,31 @@ function formatDuration(ms){
   const s = sec%60;
   return `${String(days).padStart(2,'0')}:${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
-function updateTimerDisplay(){
+function updateTimerDisplay() {
   const el = $('timer-display');
   if (!el) return;
+
   if (isSweep || !championId) {
-    el.textContent = isSweep ? 'Group sweep recorded — group challenge pending' : 'New group challenge pending';
+    el.textContent = isSweep
+      ? 'Group sweep recorded — group challenge pending'
+      : 'New group challenge pending';
     return;
   }
-  if (!timerEnd) { el.textContent = 'No active challenge'; return; }
-  const remaining = timerEnd - Date.now();
-  el.textContent = remaining > 0 ? `Time left: ${formatDuration(remaining)}` : `Time left: 00:00:00:00 — expired`;
+
+  if (!timerEnd) {
+    el.textContent = 'No active challenge';
+    return;
+  }
+
+  const diff = Date.now() - timerEnd;
+
+  if (diff < 0) {
+    // Still time left
+    el.textContent = `Time left: ${formatDuration(-diff)}`;
+  } else {
+    // Past due — show how long overdue
+    el.textContent = `Overdue by: ${formatDuration(diff)}`;
+  }
 }
 function startLocalCountdown(){
   if (timerInterval) clearInterval(timerInterval);
@@ -391,17 +406,18 @@ function renderChallengeSection(){
   btn.className = 'record-btn';
   btn.textContent = 'Record Challenge';
 
-  if (!countdownActive || !nextUpId || !championId || isSweep) {
-    btn.disabled = true;
-  } else {
-    btn.disabled = false;
-    btn.onclick = () => {
-      currentChallengerId = nextUpId;
-      window._currentChallengerId = () => currentChallengerId;
-      openChallengeModal(nextUpId);
-      renderAll();
-    };
-  }
+// Always allow recording a challenge as long as we have a champion and a challenger
+if (!nextUpId || !championId || isSweep) {
+  btn.disabled = true;
+} else {
+  btn.disabled = false;
+  btn.onclick = () => {
+    currentChallengerId = nextUpId;
+    window._currentChallengerId = () => currentChallengerId;
+    openChallengeModal(nextUpId);
+    renderAll();
+  };
+}
   row.appendChild(btn);
 
   el.appendChild(row);
