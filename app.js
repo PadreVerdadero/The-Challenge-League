@@ -1066,12 +1066,7 @@ onValue(ref(db, 'timer/endTimestamp'), snap=>{
 
 // --- Helper to render everything ---
 function renderAll(){
-  ensureSection('champion-card', 'Champion');
-  ensureSection('challenge-section', 'Challenger');
-  ensureSection('roster', 'Roster');
-  ensureSection('match-list', 'Match History');
-
-try {
+  try {
     renderChampion();
     renderChampionActions && renderChampionActions();
     renderChallengeSection();        // challenger info
@@ -1080,7 +1075,9 @@ try {
     renderMatchHistory && renderMatchHistory();
   } catch (e) {
     console.error('renderAll error', e);
-
+  }
+}
+  
   if (typeof renderRoster === 'function') renderRoster();
   if (typeof renderMatchHistory === 'function') renderMatchHistory();
 
@@ -1094,4 +1091,3 @@ try {
 document.addEventListener('DOMContentLoaded', ()=>{
   renderAll();
 });
-}
