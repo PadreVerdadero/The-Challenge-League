@@ -111,7 +111,23 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     } else {
       orderedArr = Object.keys(playersObj || {}).sort();
     }
-
+function ensureSection(id, title){
+  const app = document.getElementById('app') || document.body;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('section');
+    el.id = id;
+    el.className = 'card';
+    el.innerHTML = `<h2>${title}</h2>`;
+    // Put champion at the very top, others appended after
+    if (id === 'champion') {
+      app.insertBefore(el, app.firstChild);
+    } else {
+      app.appendChild(el);
+    }
+  }
+  return el;
+}
     const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
     const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : null;
     const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : recChampion;
