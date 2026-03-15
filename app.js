@@ -443,7 +443,6 @@ if (!area) {
     // append the button to the actions area
     area.appendChild(btn);
   }
-}
 
   const btn = document.createElement('button');
   btn.className = 'record-btn';
