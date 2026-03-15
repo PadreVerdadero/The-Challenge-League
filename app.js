@@ -290,54 +290,85 @@ function renderChampion(){
 }
 
 function renderChampionActions(){
-  const area = $('champion-actions-area'); if (!area) return; area.innerHTML = '';
-  
-  if (championId && players[championId]) {
-  const champWins = Number(players[championId].wins || 0);
-  const champLosses = Number(players[championId].losses || 0);
-  wrap.innerHTML = `<span class="champ-name">👑 ${players[championId].name}</span>
-                    <span class="player-wl"><span class="wins">${champWins}</span><span class="dash">-</span><span class="losses">${champLosses}</span></span>
-                    <span id="champion-actions-area"></span>`;
-} else {
-  wrap.innerHTML = `<span class="champ-name no-champ">No champion yet</span> <span id="champion-actions-area"></span>`;
-}
+  // Use the actions area that renderChampion creates
+  const area = document.getElementById('champion-actions-area');
+  if (!area) {
+    // nothing to render into yet
+    return;
+  }
 
-if (isSweep && championId){
-  const btn = document.createElement('button');
-  btn.textContent = 'Clear Champion (end sweep)';
-  btn.addEventListener('click', async ()=>{
+  // clear previous contents
+  area.innerHTML = '';
+
+  // If no champion, nothing to show
+  if (!championId || !players || !players[championId]) {
+    return;
+  }
+
+  // Example: Show Clear Champion button when sweep is active
+  if (isSweep) {
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = 'Clear Champion (end sweep)';
+    clearBtn.className = 'record-btn';
+    clearBtn.addEventListener('click', async () => {
+      try {
+        await set(ref(db,'championId'), null);
+        await remove(ref(db,'defeats'));
+        await remove(ref(db,'timer/endTimestamp'));
+        isSweep = false;
+        currentChallengerId = null;
+
+        // reset players order and render
+        const allIds = Object.keys(players || {});
+        playersOrderArr = allIds.slice();
+        await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+
+        // reset W-L counters if your flow requires it here
+        // (only run this if you want reset on clear)
+        const playersSnap = await get(ref(db, 'players'));
+        if (playersSnap.exists()) {
+          const playersObj = playersSnap.val();
+          const updates = {};
+          Object.keys(playersObj).forEach(pid => {
+            updates[`players/${pid}/wins`] = 0;
+            updates[`players/${pid}/losses`] = 0;
+          });
+          await update(ref(db), updates);
+        }
+
+        renderAll();
+      } catch (e) {
+        console.error('Error clearing champion', e);
+      }
+    });
+    area.appendChild(clearBtn);
+    return;
+  }
+
+  // Example: Show champion action buttons when not in sweep
+  const champId = championId;
+  const champ = players[champId] || { name: 'Champion' };
+
+  // Example: Manual remove champion button
+  const removeBtn = document.createElement('button');
+  removeBtn.textContent = 'Remove Champion';
+  removeBtn.className = 'record-btn';
+  removeBtn.addEventListener('click', async () => {
     try {
-      // Clear champion and sweep state
       await set(ref(db,'championId'), null);
       await remove(ref(db,'defeats'));
       await remove(ref(db,'timer/endTimestamp'));
-      isSweep = false;
-      currentChallengerId = null;
-
-      // Reset playersOrder to canonical list
-      const allIds = Object.keys(players || {});
-      playersOrderArr = allIds.slice();
-      await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
-
-      // Reset all players' wins and losses to zero
-      const playersSnap = await get(ref(db, 'players'));
-      if (playersSnap.exists()) {
-        const playersObj = playersSnap.val();
-        const updates = {};
-        Object.keys(playersObj).forEach(pid => {
-          updates[`players/${pid}/wins`] = 0;
-          updates[`players/${pid}/losses`] = 0;
-        });
-        await update(ref(db), updates);
-      }
-
       renderAll();
     } catch (e) {
-      console.error('Error clearing champion and resetting W-L', e);
+      console.error('Error removing champion', e);
     }
   });
-  area.appendChild(btn);
-  return;
+  area.appendChild(removeBtn);
+
+  // Example: Other actions (placeholders)
+  // const otherBtn = document.createElement('button');
+  // otherBtn.textContent = 'Some Action';
+  // area.appendChild(otherBtn);
 }
 
   if (!championId){
