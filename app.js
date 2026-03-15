@@ -284,8 +284,11 @@ function renderChampion(){
     const isSweep = typeof computeSweep === 'function' ? computeSweep() : false;
     const champEmoji = isSweep ? '🏆' : '👑';
     wrap.innerHTML = `
-      <span id="champion-name" class="champ-name">${champEmoji} ${escapeHtml(champ.name)}</span>
-    `;
+   // inside renderChampion(), replace the HTML that builds the champion display with:
+wrap.innerHTML = `
+  <span id="champion-name" class="champ-name">${champEmoji} ${escapeHtml(champ.name)}</span>
+  <span id="champion-actions-area"></span>
+`;
   } else {
     wrap.innerHTML = `<span id="champion-name" class="champ-name no-champ">No champion yet</span><span id="champion-actions-area"></span>`;
   }
