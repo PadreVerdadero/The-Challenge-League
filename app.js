@@ -370,79 +370,80 @@ async function renderChampionActions(){
   area.appendChild(lockBtn);
 }
 
-// --- Lock in Order button (safe placement of area) ---
+// --- Lock In Order button (safe, self-contained) ---
 const area = document.getElementById('champion-actions-area');
-if (!area) {
-  // If the actions area doesn't exist yet, bail out gracefully
-  // (renderChampion should create <span id="champion-actions-area"></span>)
-} else {
-  if (!championId){
-    const btn = document.createElement('button');
-    btn.textContent = 'Lock in Order';
-    btn.className = 'record-btn';
-    btn.addEventListener('click', async ()=>{
-      const ordered = playersOrderArr.length ? playersOrderArr : Object.keys(players).sort();
-      const pick = ordered.find(id => id && players[id]) || null;
-      if (!pick) { alert('No players to select as champion'); return; }
-
-      await set(ref(db, 'championId'), pick);
-      await set(ref(db, 'timer/endTimestamp'), Date.now() + WEEK_MS);
-      isSweep = false;
-
-      // Recompute order on DB to ensure canonical ordering present
-      await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
-
-      renderAll();
-
-      // Immediately post an "Order set" notification that the order has been set and show current challenger/champion
+if (area) {
+  if (!championId) {
+    const lockBtn = document.createElement('button');
+    lockBtn.textContent = 'Lock in Order';
+    lockBtn.className = 'record-btn';
+    lockBtn.addEventListener('click', async () => {
       try {
-        const [playersSnap, champSnap, orderSnap] = await Promise.all([
-          get(ref(db, 'players')),
-          get(ref(db, 'championId')),
-          get(ref(db, 'playersOrder'))
-        ]);
-        const playersObj = playersSnap.exists() ? playersSnap.val() : {};
-        const championNow = champSnap.exists() ? champSnap.val() : null;
+        const ordered = playersOrderArr.length ? playersOrderArr : Object.keys(players).sort();
+        const pick = ordered.find(id => id && players[id]) || null;
+        if (!pick) { alert('No players to select as champion'); return; }
 
-        let orderedArr = [];
-        if (orderSnap.exists()){
-          const orderVal = orderSnap.val();
-          orderedArr = Object.entries(orderVal)
-            .map(([k,id])=>({idx: Number(k), id}))
-            .filter(x => x.id)
-            .sort((a,b)=>a.idx-b.idx)
-            .map(e=>e.id);
-        } else {
-          orderedArr = Object.keys(playersObj || {}).sort();
+        await set(ref(db, 'championId'), pick);
+        await set(ref(db, 'timer/endTimestamp'), Date.now() + WEEK_MS);
+        isSweep = false;
+
+        // Recompute order on DB to ensure canonical ordering present
+        await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+
+        renderAll();
+
+        // Immediately post an "Order set" notification
+        try {
+          const [playersSnap, champSnap, orderSnap] = await Promise.all([
+            get(ref(db, 'players')),
+            get(ref(db, 'championId')),
+            get(ref(db, 'playersOrder'))
+          ]);
+          const playersObj = playersSnap.exists() ? playersSnap.val() : {};
+          const championNow = champSnap.exists() ? champSnap.val() : null;
+
+          let orderedArr = [];
+          if (orderSnap.exists()){
+            const orderVal = orderSnap.val();
+            orderedArr = Object.entries(orderVal)
+              .map(([k,id])=>({idx: Number(k), id}))
+              .filter(x => x.id)
+              .sort((a,b)=>a.idx-b.idx)
+              .map(e=>e.id);
+          } else {
+            orderedArr = Object.keys(playersObj || {}).sort();
+          }
+
+          const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
+          const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : 'No active challenger';
+          const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : 'No champion';
+
+          const embed = {
+            title: '🔒 Order Set',
+            description: `Order locked in. ${nextChallengerName} now has one week to challenge ${currentChampionName}.`,
+            color: 0x6A9AEB,
+            fields: [
+              { name: 'Current Champion', value: String(currentChampionName), inline: true },
+              { name: 'Current Challenger', value: String(nextChallengerName), inline: true },
+              { name: 'Note', value: 'Order has been set' }
+            ],
+            timestamp: new Date().toISOString()
+          };
+
+          const payload = { username: 'Challenge League Bot', embeds: [embed] };
+          const r = await fetch(DISCORD_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (!r.ok) console.error('Lock-in Discord webhook error', r.status, await r.text());
+        } catch (e) {
+          console.error('Lock-in notify error', e);
         }
-
-        const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
-        const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : 'No active challenger';
-        const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : 'No champion';
-
-        const embed = {
-          title: '🔒 Order Set',
-          description: `Order locked in. ${nextChallengerName} now has one week to challenge ${currentChampionName}.`,
-          color: 0x6A9AEB,
-          fields: [
-            { name: 'Current Champion', value: String(currentChampionName), inline: true },
-            { name: 'Current Challenger', value: String(nextChallengerName), inline: true },
-            { name: 'Note', value: 'Order has been set' }
-          ],
-          timestamp: new Date().toISOString()
-        };
-
-        const payload = { username: 'Challenge League Bot', embeds: [embed] };
-        const r = await fetch(DISCORD_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!r.ok) console.error('Lock-in Discord webhook error', r.status, await r.text());
       } catch (e) {
-        console.error('Lock-in notify error', e);
+        console.error('Lock-in error', e);
       }
     });
 
-// append the button to the actions area
-area.appendChild(btn);
+    area.appendChild(lockBtn);
   }
+}
 
 const btn = document.createElement('button');
   btn.className = 'record-btn';
