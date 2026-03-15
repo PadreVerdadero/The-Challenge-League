@@ -410,7 +410,16 @@ function renderChampionActions(){
         console.error('Lock-in notify error', e);
       }
     });
-    area.appendChild(btn);
+    const area = document.getElementById('champion-actions-area');
+if (!area) return;
+
+try {
+  // existing logic that creates `btn` and wires up listeners
+  // ...
+  area.appendChild(btn);
+} catch (e) {
+  console.error('Lock-in notify error', e);
+}
   }
 // --- Challenge section ---
 // --- Challenge section (always show next challenger; allow recording even when overdue) ---
