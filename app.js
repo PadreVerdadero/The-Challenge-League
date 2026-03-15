@@ -6,7 +6,9 @@ import {
   set,
   push,
   get,
-  remove
+  remove,
+  update,
+  runTransaction
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
 console.log('app.js loaded');
@@ -289,26 +291,54 @@ function renderChampion(){
 
 function renderChampionActions(){
   const area = $('champion-actions-area'); if (!area) return; area.innerHTML = '';
+  
+  if (championId && players[championId]) {
+  const champWins = Number(players[championId].wins || 0);
+  const champLosses = Number(players[championId].losses || 0);
+  wrap.innerHTML = `<span class="champ-name">👑 ${players[championId].name}</span>
+                    <span class="player-wl"><span class="wins">${champWins}</span><span class="dash">-</span><span class="losses">${champLosses}</span></span>
+                    <span id="champion-actions-area"></span>`;
+} else {
+  wrap.innerHTML = `<span class="champ-name no-champ">No champion yet</span> <span id="champion-actions-area"></span>`;
+}
 
-  if (isSweep && championId){
-    const btn = document.createElement('button');
-    btn.textContent = 'Clear Champion (end sweep)';
-    btn.addEventListener('click', async ()=>{
+if (isSweep && championId){
+  const btn = document.createElement('button');
+  btn.textContent = 'Clear Champion (end sweep)';
+  btn.addEventListener('click', async ()=>{
+    try {
+      // Clear champion and sweep state
       await set(ref(db,'championId'), null);
       await remove(ref(db,'defeats'));
       await remove(ref(db,'timer/endTimestamp'));
       isSweep = false;
       currentChallengerId = null;
 
+      // Reset playersOrder to canonical list
       const allIds = Object.keys(players || {});
       playersOrderArr = allIds.slice();
       await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
 
+      // Reset all players' wins and losses to zero
+      const playersSnap = await get(ref(db, 'players'));
+      if (playersSnap.exists()) {
+        const playersObj = playersSnap.val();
+        const updates = {};
+        Object.keys(playersObj).forEach(pid => {
+          updates[`players/${pid}/wins`] = 0;
+          updates[`players/${pid}/losses`] = 0;
+        });
+        await update(ref(db), updates);
+      }
+
       renderAll();
-    });
-    area.appendChild(btn);
-    return;
-  }
+    } catch (e) {
+      console.error('Error clearing champion and resetting W-L', e);
+    }
+  });
+  area.appendChild(btn);
+  return;
+}
 
   if (!championId){
     const btn = document.createElement('button');
@@ -399,7 +429,19 @@ function renderChallengeSection(){
     name.textContent = 'No active challenger';
   }
   row.appendChild(name);
+  
+if (nextUpId && players[nextUpId]) {
+  name.textContent = players[nextUpId].name;
 
+  const cWins = Number(players[nextUpId].wins || 0);
+  const cLosses = Number(players[nextUpId].losses || 0);
+  const wl = document.createElement('span');
+  wl.className = 'player-wl';
+  wl.innerHTML = `<span class="wins">${cWins}</span><span class="dash">-</span><span class="losses">${cLosses}</span>`;
+  row.appendChild(wl);
+} else {
+  name.textContent = 'No active challenger';
+}
   const btn = document.createElement('button');
   btn.className = 'record-btn';
   btn.textContent = 'Record Challenge';
@@ -446,6 +488,12 @@ function renderRoster(){
     const nameBtn = document.createElement('button');
     nameBtn.className='roster-name';
     nameBtn.textContent = p.name;
+    const wl = document.createElement('span');
+wl.className = 'player-wl';
+const wins = Number(players[id]?.wins || 0);
+const losses = Number(players[id]?.losses || 0);
+wl.innerHTML = `<span class="wins">${wins}</span><span class="dash">-</span><span class="losses">${losses}</span>`;
+row.appendChild(wl);
 
     if (defeated.has(id)) {
       nameBtn.classList.add('defeated');
@@ -818,16 +866,17 @@ async function addPlayer(){
   const input = $('new-player-name'); if (!input) return;
   const name = input.value.trim(); if (!name) return alert('Enter a name');
   const id = name.toLowerCase().trim().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'');
-  try {
-    await set(ref(db, `players/${id}`), { name });
-    if (!playersOrderArr.includes(id)){
-      playersOrderArr.push(id);
-      await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
-    }
-    input.value='';
-  } catch(e){
-    console.error('addPlayer error', e);
+// inside addPlayer()
+try {
+  await set(ref(db, `players/${id}`), { name, wins: 0, losses: 0 });
+  if (!playersOrderArr.includes(id)){
+    playersOrderArr.push(id);
+    await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
   }
+  input.value='';
+} catch(e){
+  console.error('addPlayer error', e);
+}
 }
 $('add-player-button')?.addEventListener('click', addPlayer);
 
@@ -982,6 +1031,26 @@ onValue(ref(db, 'defeats'), async snap=>{
         // Write sweep entry
         const mRef = push(ref(db, 'matches'));
         await set(mRef, sweepMatchBase);
+        // Update W-L counters atomically
+try {
+  const loserId = (winnerId === challengerId) ? championId : challengerId;
+
+  // increment winner wins
+  if (winnerId) {
+    await runTransaction(ref(db, `players/${winnerId}/wins`), current => {
+      return (Number(current) || 0) + 1;
+    });
+  }
+
+  // increment loser losses
+  if (loserId) {
+    await runTransaction(ref(db, `players/${loserId}/losses`), current => {
+      return (Number(current) || 0) + 1;
+    });
+  }
+} catch (e) {
+  console.warn('Could not update W-L counters', e);
+}
         console.log('Recorded sweep match for', currentChampionId, championName, 'pushKey:', mRef.key);
 
         // Mark the causing match as notified so submitChallenge (or any other notifier) will not post it
