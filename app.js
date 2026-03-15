@@ -111,7 +111,23 @@ async function postToDiscord(match, pushKey, opts = { delayMs: 10000 }) {
     } else {
       orderedArr = Object.keys(playersObj || {}).sort();
     }
-
+function ensureSection(id, title){
+  const app = document.getElementById('app') || document.body;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('section');
+    el.id = id;
+    el.className = 'card';
+    el.innerHTML = `<h2>${title}</h2>`;
+    // Put champion at the very top, others appended after
+    if (id === 'champion') {
+      app.insertBefore(el, app.firstChild);
+    } else {
+      app.appendChild(el);
+    }
+  }
+  return el;
+}
     const nextUpId = orderedArr.find(id => id && id !== championNow && playersObj[id]) || null;
     const nextChallengerName = nextUpId ? (playersObj[nextUpId]?.name || nextUpId) : null;
     const currentChampionName = championNow && playersObj[championNow] ? playersObj[championNow].name : recChampion;
@@ -275,16 +291,31 @@ function computeSweep(){
 if (typeof computeSweep === 'function') window.computeSweep = computeSweep;
 // --- Champion rendering ---
 function renderChampion(){
-  const el = ensureSection('champion-card', 'Champion');
-  el.innerHTML = `<h2>Champion</h2>`;
-  const wrap = document.createElement('div');
-  if (championId && players[championId]) {
-    wrap.innerHTML = `<span class="champ-name">👑 ${players[championId].name}</span> <span id="champion-actions-area"></span>`;
+  const el = ensureSection('champion', 'Champion');
+  // Build a single, stable structure for champion content
+  el.innerHTML = `
+    <h2>Champion</h2>
+    <div class="champion-wrap">
+      <span id="champion-name" class="champ-name no-champ">No champion yet</span>
+      <span id="champion-wl" class="player-wl"><span class="wins">0</span><span class="dash">-</span><span class="losses">0</span></span>
+      <span id="champion-actions-area"></span>
+    </div>
+  `;
+
+  // Fill values if we have a champion
+  const nameEl = document.getElementById('champion-name');
+  const wlEl = document.getElementById('champion-wl');
+
+  if (championId && players && players[championId]) {
+    const champ = players[championId];
+    const champWins = Number(champ.wins || 0);
+    const champLosses = Number(champ.losses || 0);
+    const champEmoji = isSweep ? '🏆' : '👑';
+    nameEl.innerHTML = `${champEmoji} ${escapeHtml(champ.name)}`;
+    wlEl.innerHTML = `<span class="wins">${champWins}</span><span class="dash">-</span><span class="losses">${champLosses}</span>`;
   } else {
-    wrap.innerHTML = `<span class="champ-name no-champ">No champion yet</span> <span id="champion-actions-area"></span>`;
-  }
-  el.appendChild(wrap);
-  renderChampionActions();
+    nameEl.textContent = 'No champion yet';
+    wlEl.innerHTML = `<span class="wins">0</span><span class="dash">-</span><span class="losses">0</span>`;
 }
 
 function renderChampionActions(){
@@ -1031,20 +1062,14 @@ onValue(ref(db, 'timer/endTimestamp'), snap=>{
 
 // --- Helper to render everything ---
 function renderAll(){
-  ensureSection('champion-card', 'Champion');
-  ensureSection('challenge-section', 'Challenger');
-  ensureSection('roster', 'Roster');
-  ensureSection('match-list', 'Match History');
-
-  renderChampion();
-  renderChallengeSection();
-
-  if (typeof renderRoster === 'function') renderRoster();
-  if (typeof renderMatchHistory === 'function') renderMatchHistory();
-
-  const addBtn = $('add-player-button');
-  if (addBtn){
-    addBtn.disabled = Boolean(isSweep || championId);
+  try {
+    renderChampion();
+    renderChampionActions();
+    renderChallengeSection();
+    renderRoster();
+    renderMatchHistory && renderMatchHistory();
+  } catch (e) {
+    console.error('renderAll error', e);
   }
 }
 
