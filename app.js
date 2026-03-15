@@ -278,11 +278,20 @@ function renderChampion(){
   const el = ensureSection('champion-card', 'Champion');
   el.innerHTML = `<h2>Champion</h2>`;
   const wrap = document.createElement('div');
-  if (championId && players[championId]) {
-    wrap.innerHTML = `<span class="champ-name">👑 ${players[championId].name}</span> <span id="champion-actions-area"></span>`;
+
+  if (championId && players && players[championId]) {
+    const champ = players[championId];
+    const isSweep = typeof computeSweep === 'function' ? computeSweep() : false;
+    const champEmoji = isSweep ? '🏆' : '👑';
+    wrap.innerHTML = `
+      <span id="champion-name" class="champ-name">${champEmoji} ${escapeHtml(champ.name)}</span>
+      <span id="champion-wl" class="player-wl"><span class="wins">${Number(champ.wins||0)}</span><span class="dash">-</span><span class="losses">${Number(champ.losses||0)}</span></span>
+      <span id="champion-actions-area"></span>
+    `;
   } else {
-    wrap.innerHTML = `<span class="champ-name no-champ">No champion yet</span> <span id="champion-actions-area"></span>`;
+    wrap.innerHTML = `<span id="champion-name" class="champ-name no-champ">No champion yet</span><span id="champion-actions-area"></span>`;
   }
+
   el.appendChild(wrap);
   renderChampionActions();
 }
