@@ -445,9 +445,15 @@ function renderRoster(){
     const row = document.createElement('div'); row.className='roster-row';
     const handle = document.createElement('div'); handle.className='order-handle'; handle.textContent='☰';
 
-    const nameBtn = document.createElement('button');
-    nameBtn.className='roster-name';
-    nameBtn.textContent = p.name;
+// create name button with medal for top three visible positions
+const nameBtn = document.createElement('button');
+nameBtn.className = 'roster-name';
+
+const medal = (position === 0) ? '🥇 ' :
+              (position === 1) ? '🥈 ' :
+              (position === 2) ? '🥉 ' : '';
+
+nameBtn.innerHTML = `${medal}${escapeHtml(p.name)}`;
 
     if (defeated.has(id)) {
       nameBtn.classList.add('defeated');
