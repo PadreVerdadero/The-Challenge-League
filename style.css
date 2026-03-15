@@ -284,3 +284,11 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
   .next-up-name { font-size: 20px; padding: 6px 10px; }
   .roster-name { font-size: 14px; padding: 8px 10px; }
 }
+#champion, #champion .champion-wrap, #champion .champ-name {
+  position: static !important;
+  transform: none !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+}
