@@ -320,6 +320,19 @@ function renderPostChallengerActions(){
     const btn = document.getElementById(id);
     if (btn) {
       row.appendChild(btn); // moving preserves listeners
+    }
+  });
+
+
+
+  // IDs of the buttons that already exist elsewhere in the DOM
+  const ids = ['record-challenge-btn', 'remove-champion-btn', 'lock-order-btn'];
+
+  // Move each existing button into the new row if it exists.
+  ids.forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      row.appendChild(btn); // moving preserves listeners
 }
     
 function renderChampionActions(){
