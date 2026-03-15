@@ -36,7 +36,7 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
 /* Champion — big, yellow, prominent */
 .champ-name {
   display: inline-block;
-  font-size: 32px;
+  font-size: 64px;
   font-weight: 800;
   color: #ffd84d;
   background: linear-gradient(180deg, rgba(255,216,77,0.06), rgba(255,216,77,0.02));
@@ -50,7 +50,7 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
   position:relative;
 }
 .champ-name.no-champ {
-  font-size:16px;
+  font-size:64px;
   font-weight:600;
   color:var(--muted);
   background:transparent;
@@ -74,7 +74,7 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
 /* Challenger — big, green, prominent */
 .next-up-name {
   display: inline-block;
-  font-size: 28px;
+  font-size: 56px;
   font-weight: 700;
   color: #b7f18b;
   background: linear-gradient(180deg, rgba(43,138,62,0.07), rgba(43,138,62,0.02));
