@@ -376,29 +376,27 @@ function renderChampionActions(){
   }
 }
 // --- Challenge section ---
+// --- Challenge section (always show next challenger; allow recording even when overdue) ---
 function renderChallengeSection(){
   const el = ensureSection('challenge-section', 'Challenger');
   el.innerHTML = `<h2>Challenger</h2>`;
 
+  // canonical order: prefer playersOrderArr (kept in sync by listeners), fallback to players keys
   const ordered = playersOrderArr.length ? playersOrderArr.slice() : Object.keys(players).sort();
+  // nextUp is the first id in order that is not the champion and exists in players
   const nextUpId = ordered.find(id => id && id !== championId && players[id]) || null;
 
-  const countdownActive = Boolean(timerEnd && (timerEnd - Date.now()) > 0);
-
-  if (championId && !isSweep && nextUpId && countdownActive) {
-    currentChallengerId = nextUpId;
-  } else {
-    currentChallengerId = null;
-  }
+  // Always expose the next challenger in the UI (even if timer expired)
+  currentChallengerId = nextUpId;
   window._currentChallengerId = () => currentChallengerId;
 
   const row = document.createElement('div'); row.className = 'next-up-row';
   const name = document.createElement('div'); name.className = 'next-up-name';
 
-  if (countdownActive && nextUpId && !isSweep) {
-    name.textContent = players[nextUpId]?.name || 'Unknown';
+  if (nextUpId && players[nextUpId]) {
+    name.textContent = players[nextUpId].name;
   } else {
-    name.textContent = 'No active challenge';
+    name.textContent = 'No active challenger';
   }
   row.appendChild(name);
 
@@ -406,18 +404,18 @@ function renderChallengeSection(){
   btn.className = 'record-btn';
   btn.textContent = 'Record Challenge';
 
-// Always allow recording a challenge as long as we have a champion and a challenger
-if (!nextUpId || !championId || isSweep) {
-  btn.disabled = true;
-} else {
-  btn.disabled = false;
-  btn.onclick = () => {
-    currentChallengerId = nextUpId;
-    window._currentChallengerId = () => currentChallengerId;
-    openChallengeModal(nextUpId);
-    renderAll();
-  };
-}
+  // Button enabled whenever we have a champion, a next challenger, and not in sweep state
+  if (!nextUpId || !championId || isSweep) {
+    btn.disabled = true;
+  } else {
+    btn.disabled = false;
+    btn.onclick = () => {
+      currentChallengerId = nextUpId;
+      window._currentChallengerId = () => currentChallengerId;
+      openChallengeModal(nextUpId);
+      renderAll();
+    };
+  }
   row.appendChild(btn);
 
   el.appendChild(row);
