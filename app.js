@@ -370,9 +370,16 @@ async function renderChampionActions(){
   area.appendChild(lockBtn);
 }
 
+// --- Lock in Order button (safe placement of area) ---
+const area = document.getElementById('champion-actions-area');
+if (!area) {
+  // If the actions area doesn't exist yet, bail out gracefully
+  // (renderChampion should create <span id="champion-actions-area"></span>)
+} else {
   if (!championId){
     const btn = document.createElement('button');
     btn.textContent = 'Lock in Order';
+    btn.className = 'record-btn';
     btn.addEventListener('click', async ()=>{
       const ordered = playersOrderArr.length ? playersOrderArr : Object.keys(players).sort();
       const pick = ordered.find(id => id && players[id]) || null;
@@ -432,45 +439,11 @@ async function renderChampionActions(){
         console.error('Lock-in notify error', e);
       }
     });
-    const area = document.getElementById('champion-actions-area');
-if (!area) return;
 
-try {
-  // existing logic that creates `btn` and wires up listeners
-  // ...
-  area.appendChild(btn);
-} catch (e) {
-  console.error('Lock-in notify error', e);
+    // append the button to the actions area
+    area.appendChild(btn);
+  }
 }
-  }
-// --- Challenge section ---
-// --- Challenge section (always show next challenger; allow recording even when overdue) ---
-function renderChallengeSection(){
-  const el = ensureSection('challenge-section', 'Challenger');
-  el.innerHTML = `<h2>Challenger</h2>`;
-
-  const ordered = (playersOrderArr && playersOrderArr.length) ? playersOrderArr.slice() : Object.keys(players || {}).sort();
-  const nextUpId = ordered.find(id => id && id !== championId && players && players[id]) || null;
-
-  currentChallengerId = nextUpId;
-  window._currentChallengerId = () => currentChallengerId;
-
-  const row = document.createElement('div');
-  row.className = 'next-up-row';
-
-  const name = document.createElement('div');
-  name.className = 'next-up-name';
-  name.textContent = (nextUpId && players[nextUpId]) ? (players[nextUpId].name || 'Unknown') : 'No active challenger';
-  row.appendChild(name);
-
-  if (nextUpId && players[nextUpId]) {
-    const cWins = Number(players[nextUpId].wins || 0);
-    const cLosses = Number(players[nextUpId].losses || 0);
-    const wl = document.createElement('span');
-    wl.className = 'player-wl';
-    wl.innerHTML = `<span class="wins">${cWins}</span><span class="dash">-</span><span class="losses">${cLosses}</span>`;
-    row.appendChild(wl);
-  }
 
   const btn = document.createElement('button');
   btn.className = 'record-btn';
