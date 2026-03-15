@@ -284,3 +284,7 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
   .next-up-name { font-size: 20px; padding: 6px 10px; }
   .roster-name { font-size: 14px; padding: 8px 10px; }
 }
+.player-wl { font-size: 0.95rem; margin-left: 8px; display:inline-flex; align-items:center; gap:4px; }
+.player-wl .wins { color: #2b8cff; font-weight: 700; }
+.player-wl .dash { color: #ddd; font-weight: 600; }
+.player-wl .losses { color: #ff4d4f; font-weight: 700; }
