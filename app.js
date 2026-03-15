@@ -412,7 +412,6 @@ function renderChampionActions(){
     });
     area.appendChild(btn);
   }
-}
 // --- Challenge section ---
 // --- Challenge section (always show next challenger; allow recording even when overdue) ---
 function renderChallengeSection(){
