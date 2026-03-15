@@ -289,29 +289,34 @@ function renderChampion(){
   renderChampionActions();
 }
 
-function renderChampionActions(){
+async function renderChampionActions(){
   const area = document.getElementById('champion-actions-area');
   if (!area) return;
   area.innerHTML = '';
 
+  // Nothing to render if no champion
   if (!championId || !players || !players[championId]) return;
 
+  // If a sweep is active, show the Clear Champion button that also resets W-L and order
   if (isSweep) {
     const clearBtn = document.createElement('button');
     clearBtn.textContent = 'Clear Champion (end sweep)';
     clearBtn.className = 'record-btn';
     clearBtn.addEventListener('click', async () => {
       try {
-        await set(ref(db,'championId'), null);
-        await remove(ref(db,'defeats'));
-        await remove(ref(db,'timer/endTimestamp'));
+        // Clear champion, defeats, and timer
+        await set(ref(db, 'championId'), null);
+        await remove(ref(db, 'defeats'));
+        await remove(ref(db, 'timer/endTimestamp'));
         isSweep = false;
         currentChallengerId = null;
 
+        // Reset playersOrder to canonical list
         const allIds = Object.keys(players || {});
         playersOrderArr = allIds.slice();
-        await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+        await set(ref(db, 'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
 
+        // Reset all players' wins and losses to zero
         const playersSnap = await get(ref(db, 'players'));
         if (playersSnap.exists()) {
           const playersObj = playersSnap.val();
@@ -332,20 +337,37 @@ function renderChampionActions(){
     return;
   }
 
+  // When not in sweep, show Remove Champion and a manual "Force Clear" option
   const removeBtn = document.createElement('button');
   removeBtn.textContent = 'Remove Champion';
   removeBtn.className = 'record-btn';
   removeBtn.addEventListener('click', async () => {
     try {
-      await set(ref(db,'championId'), null);
-      await remove(ref(db,'defeats'));
-      await remove(ref(db,'timer/endTimestamp'));
+      await set(ref(db, 'championId'), null);
+      await remove(ref(db, 'defeats'));
+      await remove(ref(db, 'timer/endTimestamp'));
       renderAll();
     } catch (e) {
       console.error('Error removing champion', e);
     }
   });
   area.appendChild(removeBtn);
+
+  // Optional: Lock-in order button (if you use it elsewhere)
+  const lockBtn = document.createElement('button');
+  lockBtn.textContent = 'Lock In Order';
+  lockBtn.className = 'record-btn';
+  lockBtn.addEventListener('click', async () => {
+    try {
+      // Example behavior: write playersOrder to DB and optionally notify
+      await set(ref(db, 'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
+      // If you have a webhook notify flow, call it here (keep it safe and idempotent)
+      renderAll();
+    } catch (e) {
+      console.error('Error locking in order', e);
+    }
+  });
+  area.appendChild(lockBtn);
 }
 
   if (!championId){
