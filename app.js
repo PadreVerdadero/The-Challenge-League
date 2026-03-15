@@ -1045,13 +1045,17 @@ onValue(ref(db, 'timer/endTimestamp'), snap=>{
 
 // --- Helper to render everything ---
 function renderAll(){
-  ensureSection('champion-card', 'Champion');
-  ensureSection('challenge-section', 'Challenger');
-  ensureSection('roster', 'Roster');
-  ensureSection('match-list', 'Match History');
+  try {
+    renderChampion();          // always first
+    renderChampionActions();   // attaches to champion section
+    renderChallengeSection();  // second
+    renderRoster();            // third
+    renderMatchHistory && renderMatchHistory(); // last
+  } catch (e) {
+    console.error('renderAll error', e);
+  }
+}
 
-  renderChampion();
-  renderChallengeSection();
 
   if (typeof renderRoster === 'function') renderRoster();
   if (typeof renderMatchHistory === 'function') renderMatchHistory();
