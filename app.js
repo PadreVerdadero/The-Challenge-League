@@ -391,10 +391,12 @@ function renderChallengeSection(){
   window._currentChallengerId = () => currentChallengerId;
 
   const row = document.createElement('div'); row.className = 'next-up-row';
-  const name = document.createElement('div'); name.className = 'next-up-name';
-
+  const name = document.createElement('div');
+  name.className = 'next-up-name';
   if (nextUpId && players[nextUpId]) {
-    name.textContent = players[nextUpId].name;
+    // show star emoji for the challenger
+    name.innerHTML = `⭐ ${escapeHtml(players[nextUpId].name || 'Unknown')}`;
+    name.title = 'Challenger';
   } else {
     name.textContent = 'No active challenger';
   }
