@@ -290,22 +290,12 @@ function renderChampion(){
 }
 
 function renderChampionActions(){
-  // Use the actions area that renderChampion creates
   const area = document.getElementById('champion-actions-area');
-  if (!area) {
-    // nothing to render into yet
-    return;
-  }
-
-  // clear previous contents
+  if (!area) return;
   area.innerHTML = '';
 
-  // If no champion, nothing to show
-  if (!championId || !players || !players[championId]) {
-    return;
-  }
+  if (!championId || !players || !players[championId]) return;
 
-  // Example: Show Clear Champion button when sweep is active
   if (isSweep) {
     const clearBtn = document.createElement('button');
     clearBtn.textContent = 'Clear Champion (end sweep)';
@@ -318,13 +308,10 @@ function renderChampionActions(){
         isSweep = false;
         currentChallengerId = null;
 
-        // reset players order and render
         const allIds = Object.keys(players || {});
         playersOrderArr = allIds.slice();
         await set(ref(db,'playersOrder'), Object.fromEntries(playersOrderArr.map((v,i)=>[i,v])));
 
-        // reset W-L counters if your flow requires it here
-        // (only run this if you want reset on clear)
         const playersSnap = await get(ref(db, 'players'));
         if (playersSnap.exists()) {
           const playersObj = playersSnap.val();
@@ -345,11 +332,6 @@ function renderChampionActions(){
     return;
   }
 
-  // Example: Show champion action buttons when not in sweep
-  const champId = championId;
-  const champ = players[champId] || { name: 'Champion' };
-
-  // Example: Manual remove champion button
   const removeBtn = document.createElement('button');
   removeBtn.textContent = 'Remove Champion';
   removeBtn.className = 'record-btn';
@@ -364,11 +346,6 @@ function renderChampionActions(){
     }
   });
   area.appendChild(removeBtn);
-
-  // Example: Other actions (placeholders)
-  // const otherBtn = document.createElement('button');
-  // otherBtn.textContent = 'Some Action';
-  // area.appendChild(otherBtn);
 }
 
   if (!championId){
@@ -440,35 +417,22 @@ function renderChampionActions(){
 // --- Challenge section (always show next challenger; allow recording even when overdue) ---
 function renderChallengeSection(){
   const el = ensureSection('challenge-section', 'Challenger');
-  // start fresh
   el.innerHTML = `<h2>Challenger</h2>`;
 
-  // canonical order: prefer playersOrderArr, fallback to players keys
   const ordered = (playersOrderArr && playersOrderArr.length) ? playersOrderArr.slice() : Object.keys(players || {}).sort();
-
-  // nextUp is the first id in order that is not the champion and exists in players
   const nextUpId = ordered.find(id => id && id !== championId && players && players[id]) || null;
 
-  // expose the next challenger id globally for other code
   currentChallengerId = nextUpId;
   window._currentChallengerId = () => currentChallengerId;
 
-  // build row
   const row = document.createElement('div');
   row.className = 'next-up-row';
 
   const name = document.createElement('div');
   name.className = 'next-up-name';
-
-  // challenger name (always set once)
-  if (nextUpId && players[nextUpId]) {
-    name.textContent = players[nextUpId].name || 'Unknown';
-  } else {
-    name.textContent = 'No active challenger';
-  }
+  name.textContent = (nextUpId && players[nextUpId]) ? (players[nextUpId].name || 'Unknown') : 'No active challenger';
   row.appendChild(name);
 
-  // W-L badge (only when we have a challenger)
   if (nextUpId && players[nextUpId]) {
     const cWins = Number(players[nextUpId].wins || 0);
     const cLosses = Number(players[nextUpId].losses || 0);
@@ -478,12 +442,9 @@ function renderChallengeSection(){
     row.appendChild(wl);
   }
 
-  // record button
   const btn = document.createElement('button');
   btn.className = 'record-btn';
   btn.textContent = 'Record Challenge';
-
-  // Button enabled whenever we have a champion, a next challenger, and not in sweep state
   if (!nextUpId || !championId || isSweep) {
     btn.disabled = true;
   } else {
@@ -499,7 +460,6 @@ function renderChallengeSection(){
 
   el.appendChild(row);
 
-  // timer display
   const timerWrap = document.createElement('div');
   timerWrap.id = 'timer-display';
   el.appendChild(timerWrap);
