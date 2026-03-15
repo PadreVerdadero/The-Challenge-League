@@ -279,9 +279,51 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
   .explosion-flash, .explosion-particle { animation: none; opacity: 0.9; transform: none; }
   .trophy-badge, .trophy-badge--enter { transition: none; transform: none; opacity: 1; }
 }
-/* Center all card content */
+/* Center headings and basic card content */
 .card { text-align: center; }
-.card > * { margin-left: auto; margin-right: auto; }
+.card > h2 { text-align: center; }
+
+/* Center common inner wrappers (flex or block) used across the UI */
+.card .champion-wrap,
+.card .next-up-row,
+.card .post-actions-row,
+.card .roster-row,
+.card .challenge-wrap,
+.card .player-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Keep roster name sizing reasonable when centered */
+.roster-name { text-align: center; flex: 0 1 auto; }
+
+/* Keep order handle and small controls visually aligned but not forced left */
+.order-handle, .move-btn { margin: 0 6px; }
+
+/* If you want the order handle hidden when centering roster rows, uncomment: */
+/* .order-handle { display: none !important; } */
+
+/* Ensure champion styling still looks right when centered */
+#champion .champ-name { display: inline-block; }
+
+/* Post actions spacing */
+#post-challenger-actions { margin-top: 8px; margin-bottom: 12px; }
+
+/* Responsive: stack vertically on small screens */
+@media (max-width: 520px) {
+  .card .champion-wrap,
+  .card .post-actions-row,
+  .card .roster-row,
+  .card .next-up-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .champ-name { font-size: 22px; padding: 8px 12px; }
+  .roster-name { font-size: 14px; }
+}
 /* Responsive tweaks */
 @media (max-width: 520px){
   .champ-name { font-size: 22px; padding: 8px 12px; }
