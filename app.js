@@ -281,20 +281,24 @@ function renderChampion(){
 
   if (championId && players && players[championId]) {
     const champ = players[championId];
+    const champWins = Number(champ.wins || 0);
+    const champLosses = Number(champ.losses || 0);
     const isSweep = typeof computeSweep === 'function' ? computeSweep() : false;
     const champEmoji = isSweep ? '🏆' : '👑';
+
     wrap.innerHTML = `
-   // inside renderChampion(), replace the HTML that builds the champion display with:
-wrap.innerHTML = `
-  <span id="champion-name" class="champ-name">${champEmoji} ${escapeHtml(champ.name)}</span>
-  <span id="champion-actions-area"></span>
-`;
+      <span id="champion-name" class="champ-name">${champEmoji} ${escapeHtml(champ.name)}</span>
+      <span id="champion-wl" class="player-wl" style="display:${(champWins === 0 && champLosses === 0) ? 'none' : 'inline-block'};">
+        <span class="wins">${champWins}</span><span class="dash">-</span><span class="losses">${champLosses}</span>
+      </span>
+      <span id="champion-actions-area"></span>
+    `;
   } else {
     wrap.innerHTML = `<span id="champion-name" class="champ-name no-champ">No champion yet</span><span id="champion-actions-area"></span>`;
   }
 
   el.appendChild(wrap);
-  renderChampionActions();
+  renderChampionActions && renderChampionActions();
 }
 
 function renderChampionActions(){
