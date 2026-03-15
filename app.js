@@ -440,11 +440,11 @@ if (!area) {
       }
     });
 
-    // append the button to the actions area
-    area.appendChild(btn);
+// append the button to the actions area
+area.appendChild(btn);
   }
 
-  const btn = document.createElement('button');
+const btn = document.createElement('button');
   btn.className = 'record-btn';
   btn.textContent = 'Record Challenge';
   if (!nextUpId || !championId || isSweep) {
