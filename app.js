@@ -275,16 +275,30 @@ function computeSweep(){
 if (typeof computeSweep === 'function') window.computeSweep = computeSweep;
 // --- Champion rendering ---
 function renderChampion(){
-  const el = ensureSection('champion-card', 'Champion');
+  const el = ensureSection('champion', 'Champion');
   el.innerHTML = `<h2>Champion</h2>`;
+
   const wrap = document.createElement('div');
-  if (championId && players[championId]) {
-    wrap.innerHTML = `<span class="champ-name">👑 ${players[championId].name}</span> <span id="champion-actions-area"></span>`;
+  wrap.className = 'champion-wrap';
+
+  if (championId && players && players[championId]) {
+    const champ = players[championId];
+    const champWins = Number(champ.wins || 0);
+    const champLosses = Number(champ.losses || 0);
+
+    // Use trophy emoji during a sweep, crown otherwise
+    const champEmoji = isSweep ? '🏆' : '👑';
+
+    wrap.innerHTML = `
+      <span class="champ-name">${champEmoji} ${escapeHtml(champ.name)}</span>
+      <span class="player-wl"><span class="wins">${champWins}</span><span class="dash">-</span><span class="losses">${champLosses}</span></span>
+      <span id="champion-actions-area"></span>
+    `;
   } else {
-    wrap.innerHTML = `<span class="champ-name no-champ">No champion yet</span> <span id="champion-actions-area"></span>`;
+    wrap.innerHTML = `<span class="champ-name no-champ">No champion yet</span><span id="champion-actions-area"></span>`;
   }
+
   el.appendChild(wrap);
-  renderChampionActions();
 }
 
 function renderChampionActions(){
