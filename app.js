@@ -306,7 +306,7 @@ function renderChampionActions(){
 
   if (isSweep && championId){
     const btn = document.createElement('button');
-    btn.textContent = 'Clear Champion (end sweep)';
+    btn.textContent = '♻️';
     btn.addEventListener('click', async ()=>{
       await set(ref(db,'championId'), null);
       await remove(ref(db,'defeats'));
@@ -326,7 +326,7 @@ function renderChampionActions(){
 
   if (!championId){
     const btn = document.createElement('button');
-    btn.textContent = 'Lock in Order';
+    btn.textContent = '🔒';
     btn.addEventListener('click', async ()=>{
       const ordered = playersOrderArr.length ? playersOrderArr : Object.keys(players).sort();
       const pick = ordered.find(id => id && players[id]) || null;
@@ -418,7 +418,7 @@ function renderChallengeSection(){
 
   const btn = document.createElement('button');
   btn.className = 'record-btn';
-  btn.textContent = 'Record Challenge';
+  btn.textContent = '📝';
 
   // Button enabled whenever we have a champion, a next challenger, and not in sweep state
   if (!nextUpId || !championId || isSweep) {
