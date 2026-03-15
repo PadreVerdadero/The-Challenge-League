@@ -313,9 +313,9 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
 #remove-champion-btn,
 #lock-order-btn {
   padding: 14px 22px;
-  font-size: 18px;
+  font-size: 48px;
   border-radius: 12px;
-  min-width: 160px;
+  min-width: 56px;
   height: 56px;
   line-height: 1;
   cursor: pointer;
