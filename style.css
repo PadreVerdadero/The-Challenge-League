@@ -127,6 +127,8 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
   font-size:18px;
   padding:4px 6px;
 }
+/* hide the three-line order handle next to roster names */
+.order-handle { display: none !important; }
 .roster-name{
   flex:1;
   text-align:left;
