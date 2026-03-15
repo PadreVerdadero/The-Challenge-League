@@ -279,15 +279,14 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
   .explosion-flash, .explosion-particle { animation: none; opacity: 0.9; transform: none; }
   .trophy-badge, .trophy-badge--enter { transition: none; transform: none; opacity: 1; }
 }
-/* Center headings and basic card content */
+/* --- Keep most cards centered but keep roster left-aligned --- */
 .card { text-align: center; }
 .card > h2 { text-align: center; }
 
-/* Center common inner wrappers (flex or block) used across the UI */
+/* Center common inner wrappers used across the UI (except roster) */
 .card .champion-wrap,
 .card .next-up-row,
 .card .post-actions-row,
-.card .roster-row,
 .card .challenge-wrap,
 .card .player-row {
   display: flex;
@@ -297,32 +296,67 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
   flex-wrap: wrap;
 }
 
-/* Keep roster name sizing reasonable when centered */
-.roster-name { text-align: center; flex: 0 1 auto; }
+/* Explicitly keep roster rows left aligned and preserve original layout */
+.roster-row {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+.roster-name { text-align: left; flex: 1 1 auto; }
 
-/* Keep order handle and small controls visually aligned but not forced left */
-.order-handle, .move-btn { margin: 0 6px; }
+/* --- Make the action buttons much larger --- */
+/* Targets buttons that use .record-btn and common action IDs */
+.record-btn,
+#record-challenge-btn,
+#remove-champion-btn,
+#lock-order-btn {
+  padding: 14px 22px;
+  font-size: 18px;
+  border-radius: 12px;
+  min-width: 160px;
+  height: 56px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+}
 
-/* If you want the order handle hidden when centering roster rows, uncomment: */
-/* .order-handle { display: none !important; } */
+/* If you want an even more prominent primary style for the main action */
+#record-challenge-btn {
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.06);
+}
 
-/* Ensure champion styling still looks right when centered */
-#champion .champ-name { display: inline-block; }
+/* Keep other small controls (order handle, move buttons) compact */
+.order-handle, .move-btn { padding: 6px 8px; font-size: 16px; }
 
-/* Post actions spacing */
-#post-challenger-actions { margin-top: 8px; margin-bottom: 12px; }
-
-/* Responsive: stack vertically on small screens */
+/* --- Responsive adjustments --- */
 @media (max-width: 520px) {
+  /* stack centered areas vertically */
   .card .champion-wrap,
   .card .post-actions-row,
-  .card .roster-row,
-  .card .next-up-row {
+  .card .next-up-row,
+  .card .challenge-wrap {
     flex-direction: column;
     gap: 8px;
   }
-  .champ-name { font-size: 22px; padding: 8px 12px; }
-  .roster-name { font-size: 14px; }
+
+  /* scale down big buttons on small screens */
+  .record-btn,
+  #record-challenge-btn,
+  #remove-champion-btn,
+  #lock-order-btn {
+    min-width: 100%;
+    height: 48px;
+    font-size: 16px;
+    padding: 12px 16px;
+  }
+
+  /* roster remains left aligned but tighter spacing */
+  .roster-row { gap: 8px; }
+  .roster-name { font-size: 16px; }
 }
 /* Responsive tweaks */
 @media (max-width: 520px){
