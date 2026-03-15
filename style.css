@@ -316,7 +316,7 @@ h2{ margin:0 0 12px; font-size:18px; color:var(--muted); }
   font-size: 48px;
   border-radius: 12px;
   min-width: 56px;
-  height: 56px;
+  height: 64px;
   line-height: 1;
   cursor: pointer;
   box-shadow: 0 8px 20px rgba(0,0,0,0.35);
