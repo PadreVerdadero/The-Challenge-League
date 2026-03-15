@@ -300,41 +300,7 @@ function renderChampion(){
   el.appendChild(wrap);
   renderChampionActions && renderChampionActions();
 }
-function renderPostChallengerActions(){
-  // Create or reuse the section
-  const el = ensureSection('post-challenger-actions', 'Actions');
 
-  // Keep a stable wrapper so we always move into the same place
-  let row = el.querySelector('.post-actions-row');
-  if (!row) {
-    row = document.createElement('div');
-    row.className = 'post-actions-row';
-    el.appendChild(row);
-  }
-
-  // IDs of the buttons that already exist elsewhere in the DOM
-  const ids = ['record-challenge-btn', 'remove-champion-btn', 'lock-order-btn'];
-
-  // Move each existing button into the new row if it exists.
-  ids.forEach(id => {
-    const btn = document.getElementById(id);
-    if (btn) {
-      row.appendChild(btn); // moving preserves listeners
-    }
-  });
-
-
-
-  // IDs of the buttons that already exist elsewhere in the DOM
-  const ids = ['record-challenge-btn', 'remove-champion-btn', 'lock-order-btn'];
-
-  // Move each existing button into the new row if it exists.
-  ids.forEach(id => {
-    const btn = document.getElementById(id);
-    if (btn) {
-      row.appendChild(btn); // moving preserves listeners
-}
-    
 function renderChampionActions(){
   const area = $('champion-actions-area'); if (!area) return; area.innerHTML = '';
 
@@ -1079,18 +1045,14 @@ onValue(ref(db, 'timer/endTimestamp'), snap=>{
 
 // --- Helper to render everything ---
 function renderAll(){
-  try {
-    renderChampion();
-    renderChampionActions && renderChampionActions();
-    renderChallengeSection();        // challenger info
-    renderPostChallengerActions();   // <-- new: moves the buttons here
-    renderRoster();
-    renderMatchHistory && renderMatchHistory();
-  } catch (e) {
-    console.error('renderAll error', e);
-  }
-}
-  
+  ensureSection('champion-card', 'Champion');
+  ensureSection('challenge-section', 'Challenger');
+  ensureSection('roster', 'Roster');
+  ensureSection('match-list', 'Match History');
+
+  renderChampion();
+  renderChallengeSection();
+
   if (typeof renderRoster === 'function') renderRoster();
   if (typeof renderMatchHistory === 'function') renderMatchHistory();
 
