@@ -292,27 +292,34 @@ if (typeof computeSweep === 'function') window.computeSweep = computeSweep;
 // --- Champion rendering ---
 function renderChampion(){
   const el = ensureSection('champion', 'Champion');
-  el.innerHTML = `<h2>Champion</h2>`;
+  // Build a single, stable structure for champion content
+  el.innerHTML = `
+    <h2>Champion</h2>
+    <div class="champion-wrap">
+      <span id="champion-name" class="champ-name no-champ">No champion yet</span>
+      <span id="champion-wl" class="player-wl"><span class="wins">0</span><span class="dash">-</span><span class="losses">0</span></span>
+      <span id="champion-actions-area"></span>
+    </div>
+  `;
 
-  const wrap = document.createElement('div');
+  // Fill values if we have a champion
+  const nameEl = document.getElementById('champion-name');
+  const wlEl = document.getElementById('champion-wl');
+
   if (championId && players && players[championId]) {
     const champ = players[championId];
     const champWins = Number(champ.wins || 0);
     const champLosses = Number(champ.losses || 0);
-
-    // Use trophy emoji during a sweep, crown otherwise
     const champEmoji = isSweep ? '🏆' : '👑';
-
-    wrap.innerHTML = `
-      <span class="champ-name">${champEmoji} ${escapeHtml(champ.name)}</span>
-      <span class="player-wl"><span class="wins">${champWins}</span><span class="dash">-</span><span class="losses">${champLosses}</span></span>
-      <span id="champion-actions-area"></span>
-    `;
+    nameEl.innerHTML = `${champEmoji} ${escapeHtml(champ.name)}`;
+    wlEl.innerHTML = `<span class="wins">${champWins}</span><span class="dash">-</span><span class="losses">${champLosses}</span>`;
   } else {
-    wrap.innerHTML = `<span class="champ-name no-champ">No champion yet</span><span id="champion-actions-area"></span>`;
+    nameEl.textContent = 'No champion yet';
+    wlEl.innerHTML = `<span class="wins">0</span><span class="dash">-</span><span class="losses">0</span>`;
   }
 
-  el.appendChild(wrap);
+  // Ensure champion section stays at top
+  ensureChampionAtTop();
 }
 
 function renderChampionActions(){
