@@ -295,8 +295,6 @@ function renderChampion(){
   el.innerHTML = `<h2>Champion</h2>`;
 
   const wrap = document.createElement('div');
-  wrap.className = 'champion-wrap';
-
   if (championId && players && players[championId]) {
     const champ = players[championId];
     const champWins = Number(champ.wins || 0);
