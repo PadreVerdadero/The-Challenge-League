@@ -1046,23 +1046,13 @@ onValue(ref(db, 'timer/endTimestamp'), snap=>{
 // --- Helper to render everything ---
 function renderAll(){
   try {
-    renderChampion();          // always first
-    renderChampionActions();   // attaches to champion section
-    renderChallengeSection();  // second
-    renderRoster();            // third
-    renderMatchHistory && renderMatchHistory(); // last
+    renderChampion();
+    renderChampionActions();
+    renderChallengeSection();
+    renderRoster();
+    renderMatchHistory && renderMatchHistory();
   } catch (e) {
     console.error('renderAll error', e);
-  }
-}
-
-
-  if (typeof renderRoster === 'function') renderRoster();
-  if (typeof renderMatchHistory === 'function') renderMatchHistory();
-
-  const addBtn = $('add-player-button');
-  if (addBtn){
-    addBtn.disabled = Boolean(isSweep || championId);
   }
 }
 
